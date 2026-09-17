@@ -227,6 +227,10 @@ table.pos tr:last-child td{border-bottom:0}
 .proy .chip.oro{background:#2A2213;border-color:#D6A96A;color:#D6A96A}
 .proy .vacio{background:#15152A;border-color:#2C2C4A;color:#9C9CC0}
 .proy .btn.sec{background:#1C1C36;border-color:#3A3A5C;color:#F4F4FA}
+.proy .proy-h{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.proy .proy-h .sello{width:62px;height:62px;border-radius:50%;background:#fff;padding:3px;flex:none}
+.proy .proy-h .sello img{width:100%;height:100%;display:block;border-radius:50%}
+.proy .chip.mal{background:#33161A;border-color:#FF6168;color:#FF9095}
 .proy .cols{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
 .proy .col-h{display:flex;align-items:baseline;gap:12px;margin:0 0 8px}
 .proy .cat-grande{font-family:var(--display);font-size:2.1rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
@@ -355,6 +359,7 @@ function equipos(j,d,c){
 var SB = { url:"https://wgvvgzihpwzzalgmzhla.supabase.co", key:"sb_publishable_4a8nF5Or2612teTNeFkQ0Q_zIYqUGRf" };
 var EN_LINEA = /^https:\/\//.test(SB.url) && SB.key.length > 30;
 var DIRECCION = "fabripeano-cloud.github.io/deportivas-2026";
+var LOGO = "";   /* se toma del encabezado, para no incrustar la imagen dos veces */
 
 /* ---------- estado ---------- */
 var CLAVE = "deportivas2026.v2";
@@ -823,11 +828,12 @@ function foco(j, cat){
   /* Cada cancha va a su ritmo: si las chicas terminaron el voley y los varones
      siguen, cada lado muestra SU deporte. Devuelve el partido en juego; si no hay,
      el ultimo terminado; si tampoco, el proximo por jugar. */
-  var vivo = null, ultimo = null, prox = null, cuando = -1, x, c, m;
+  var vivo = null, ultimo = null, prox = null, cuando = -1, cuantos = 0, x, c, m;
   for(x = 0; x < DEPORTES.length; x++){
     for(c = 0; c < 7; c++){
       m = M(mid(j, DEPORTES[x].id, c, cat));
       if(m.st === "live"){
+        cuantos++;
         if(!vivo || (m.t0 || 0) >= (vivo.t0 || 0)) vivo = { d:DEPORTES[x], c:c, t0:m.t0 || 0 };
       } else if(m.st === "fin"){
         if((m.fin || 0) > cuando){ cuando = m.fin || 0; ultimo = { d:DEPORTES[x], c:c }; }
@@ -836,7 +842,7 @@ function foco(j, cat){
       }
     }
   }
-  return { vivo:vivo, ref: vivo || ultimo || prox };
+  return { vivo:vivo, cuantos:cuantos, ref: vivo || ultimo || prox };
 }
 
 function vacio(txt){ return '<div class="vacio">' + txt + "</div>"; }
@@ -1046,10 +1052,13 @@ function columnaProyector(j, cat){
     return '<section><div class="col-h"><span class="cat-grande">' + cat.lab + "</span></div>"
       + vacio("Sin partidos cargados.") + "</section>";
   }
-  var d = f.ref.d, c = f.ref.c;
+  var d = f.ref.d, c = f.ref.c, m = M(mid(j, d.id, c, cat.id)), estado;
+  if(f.cuantos > 1) estado = '<span class="chip mal">' + f.cuantos + " partidos en juego</span>";
+  else if(f.vivo) estado = "";
+  else estado = '<span class="chip">' + (m.st === "fin" ? "Último resultado" : "Por empezar") + "</span>";
   return '<section><div class="col-h"><span class="cat-grande">' + cat.lab + "</span>"
     + '<span class="eyebrow">' + d.nombre + " · " + turno(c) + "</span>"
-    + '<span class="sp"></span>' + (f.vivo ? "" : '<span class="chip">En pausa</span>') + "</div>"
+    + '<span class="sp"></span>' + estado + "</div>"
     + '<article class="cruce' + (f.vivo ? " jugando" : "") + '">'
     + bloqueCancha(j, d, c, cat, true) + "</article>"
     + tablaHTML(j, d, cat)
@@ -1061,7 +1070,8 @@ function vistaProyector(j){
   var hora = new Date(ahora());
   var reloj = hora.getHours() + ":" + (hora.getMinutes() < 10 ? "0" : "") + hora.getMinutes();
   return '<button class="btn sec salir" data-act="salirproy">Salir</button>'
-    + '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:14px">'
+    + '<div class="proy-h">'
+    + '<div class="sello"><img src="' + LOGO + '" alt="Sello del Colegio Secundario Luterano Concordia"></div>'
     + "<h2>Deportivas 2026</h2>"
     + '<span class="eyebrow">' + J.dia + " · " + J.ciclo + '</span><span style="flex:1 1 auto"></span>'
     + '<span class="reloj" style="font-size:1.6rem">' + reloj + "</span></div>"
@@ -1157,6 +1167,19 @@ document.addEventListener("click", function(ev){
   }
   if(!id) return;
   if(act === "iniciar"){
+    /* Son dos canchas: en cada una se juega un partido a la vez. Si ya hay uno
+       en juego, empezar otro dejaria el proyector y las tablas a medias. */
+    var pid = id.split(".");
+    var enJuego = foco(pid[0], pid[3]).vivo;
+    if(enJuego && mid(pid[0], enJuego.d.id, enJuego.c, pid[3]) !== id){
+      var eq = nombres(pid[0], enJuego.d.id, enJuego.c, pid[3]);
+      AVISO_PANEL = "En la cancha de " + (pid[3] === "muj" ? "mujeres" : "varones")
+        + " ya hay un partido en juego: " + eq[0] + " vs. " + eq[1] + " de " + enJuego.d.nombre.toLowerCase()
+        + " (" + turno(enJuego.c).toLowerCase() + "). Finalizá ese antes de empezar otro.";
+      pintar();
+      return;
+    }
+    AVISO_PANEL = "";
     cambiar(id, function(m){
       m.st = "live"; m.per = 1; m.t0 = ahora();
       var p = id.split(".");
@@ -1279,6 +1302,11 @@ window.addEventListener("hashchange", function(){
   var h = (location.hash || "").replace("#", "");
   for(var i=0;i<TABS.length;i++) if(TABS[i].id === h){ UI.tab = h; pintar(); }
 });
+
+try{
+  var img = document.querySelector(".top .sello img");
+  if(img) LOGO = img.getAttribute("src") || "";
+}catch(e){}
 
 try{
   S = leer() || estadoVacio();   /* lo último que vimos, para que algo se vea ya */
