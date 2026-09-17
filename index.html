@@ -86,8 +86,15 @@ button{font:inherit;color:inherit}
 .marca h1{font-size:1.65rem;line-height:1;text-transform:uppercase}
 .marca p{margin:2px 0 0;font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;opacity:.8}
 .top-sp{flex:1 1 auto}
-.demo-chip{font-family:var(--display);font-size:.78rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
-  border:1px solid rgba(255,255,255,.45);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.estado-chip{font-family:var(--display);font-size:.78rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  border:1px solid rgba(255,255,255,.45);border-radius:999px;padding:3px 10px;white-space:nowrap;display:inline-flex;
+  align-items:center;gap:6px}
+.estado-chip.mal{border-color:#FF9095;color:#FFC9CB}
+.estado-chip i{width:7px;height:7px;border-radius:50%;background:currentColor;display:block}
+.tema{font-family:var(--display);font-size:.78rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  background:rgba(255,255,255,.12);color:inherit;border:1px solid rgba(255,255,255,.45);border-radius:999px;
+  padding:4px 11px;cursor:pointer;white-space:nowrap}
+.tema:hover{background:rgba(255,255,255,.22)}
 
 /* ---- selector de jornada ---- */
 .jornadas{display:flex;gap:8px;flex-wrap:wrap;padding:12px 0 4px}
@@ -179,8 +186,14 @@ table.pos tr:last-child td{border-bottom:0}
 .equipo .num{display:block;margin:0 0 2px}
 .candado{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);
   padding:20px;max-width:420px;margin:0 auto;text-align:center}
-.candado input{font:inherit;font-size:1.3rem;text-align:center;letter-spacing:.4em;width:160px;padding:8px;
-  border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--ink);margin:10px 0}
+.candado{text-align:left}
+.candado h2{text-align:center}
+.candado .campo{margin:10px 0}
+.candado label{display:block;font-family:var(--display);font-size:.8rem;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.candado input{font:inherit;width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;
+  background:var(--surface2);color:var(--ink)}
+.meta.mal{color:var(--live)}
 .aviso{background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--r);padding:10px 12px;
   font-size:.86rem;margin:0 0 14px}
 .aviso b{color:var(--accent)}
@@ -207,6 +220,12 @@ table.pos tr:last-child td{border-bottom:0}
 .proy .rot{display:flex;gap:6px;margin:14px 0 8px;align-items:center}
 .proy .rot i{width:26px;height:4px;border-radius:2px;background:#33334F;display:block}
 .proy .rot i.on{background:#D6A96A}
+.proy .qr{display:flex;align-items:center;gap:18px;margin-top:20px;background:#15152A;border:1px solid #2C2C4A;
+  border-radius:12px;padding:14px 18px}
+.proy .qr img{width:132px;height:132px;background:#fff;padding:7px;border-radius:10px;flex:none}
+.proy .qr b{font-family:var(--display);font-size:1.7rem;letter-spacing:.02em}
+.proy .qr div{line-height:1.35;font-size:1.05rem;color:#C8C8DC}
+.proy .qr .eyebrow{font-size:1.05rem;color:#D6A96A}
 
 /* ---- pie de página ---- */
 .creditos{border-top:1px solid var(--line);margin-top:8px;padding:14px 0 4px;color:var(--muted);font-size:.8rem}
@@ -235,7 +254,9 @@ table.pos tr:last-child td{border-bottom:0}
       <p>Colegio Luterano Concordia · Jornada del Fogón</p>
     </div>
     <div class="top-sp"></div>
-    <span class="demo-chip" id="chip-demo" hidden>Datos de ejemplo</span>
+    <span class="estado-chip" id="chip-sync" hidden></span>
+    <span class="estado-chip" id="chip-demo" hidden>Datos de prueba</span>
+    <button class="tema" id="btn-tema" type="button" data-act="tema">Tema</button>
   </div>
 </header>
 
@@ -250,8 +271,8 @@ table.pos tr:last-child td{border-bottom:0}
     </div>
   </main>
   <div class="creditos">
-    Boceto de prueba · Educación Física · Prof. Fabricio Peano y Prof. Matías Rodríguez.
-    Los resultados que se cargan acá quedan en este navegador.
+    Educación Física · Prof. Fabricio Peano y Prof. Matías Rodríguez · Colegio Secundario Luterano Concordia.
+    Los marcadores los cargan los profesores durante la jornada.
     <b id="version">· la página no arrancó</b>
   </div>
 </div>
@@ -296,7 +317,6 @@ var DEPORTES = [
 var CRUCES = [[0,1],[2,3],[4,5],[1,2],[0,5],[3,4]];
 var CATS = [{id:"muj",lab:"Mujeres"},{id:"var",lab:"Varones"}];
 var MINUTOS = 5;            /* duración de cada tiempo en básquet y fútbol sala */
-var PIN = "2026";
 
 function dep(id){ for(var i=0;i<DEPORTES.length;i++) if(DEPORTES[i].id===id) return DEPORTES[i]; }
 function jor(id){ for(var i=0;i<JORNADAS.length;i++) if(JORNADAS[i].id===id) return JORNADAS[i]; }
@@ -307,18 +327,54 @@ function equipos(j,d,c){
   return [p[CRUCES[c][0]], p[CRUCES[c][1]]];
 }
 
-/* ---------- estado compartido ---------- */
-var CLAVE = "deportivas2026.v1";
-var S = null, canal = null;
+/* ---------- servidor ----------
+   Estos dos valores salen de Supabase: Settings > API. Son públicos a
+   propósito: lo que protege los marcadores son los permisos de la base
+   (leer todos, escribir solo los usuarios docentes). Si quedan vacíos, la
+   página funciona igual pero en modo local, sin compartir nada. */
+var SB = { url:"", key:"" };
+var EN_LINEA = /^https:\/\//.test(SB.url) && SB.key.length > 30;
+var DIRECCION = "fabripeano-cloud.github.io/deportivas-2026";
 
-function estadoVacio(){ return { v:1, m:{}, sorteo:{}, demo:false, t:Date.now() }; }
-function guardar(){ try{ localStorage.setItem(CLAVE, JSON.stringify(S)); }catch(e){} }
+/* ---------- estado ---------- */
+var CLAVE = "deportivas2026.v2";
+var S = null, canal = null;
+var REV = 0;              /* último número de cambio que vimos del servidor */
+var COLA = [];            /* partidos modificados que todavía no se subieron */
+var SKEW = 0;             /* diferencia entre el reloj del servidor y el de este aparato */
+var CONEX = EN_LINEA ? "esperando" : "local";
+var INTERVALO = { panel:3, publico:10 };
+
+function ahora(){ return Date.now() + SKEW; }
+function estadoVacio(){ return { v:2, m:{}, sorteo:{}, demo:false, t:Date.now() }; }
+function guardar(){
+  try{
+    localStorage.setItem(CLAVE, JSON.stringify(
+      { v:2, m:S.m, sorteo:S.sorteo, demo:S.demo, rev:REV, cola:COLA }));
+  }catch(e){}
+}
 function leer(){
-  try{ var x = localStorage.getItem(CLAVE); if(x){ var o=JSON.parse(x); if(o && o.v===1) return o; } }catch(e){}
+  try{
+    var o = JSON.parse(localStorage.getItem(CLAVE) || "null");
+    if(o && o.v === 2){
+      REV = o.rev || 0;
+      COLA = o.cola || [];
+      return { v:2, m:o.m || {}, sorteo:o.sorteo || {}, demo:!!o.demo, t:Date.now() };
+    }
+  }catch(e){}
   return null;
 }
-function commit(){ S.t = Date.now(); guardar(); try{ if(canal) canal.postMessage(S); }catch(e){} pintar(); }
-function recibir(o){ if(o && o.v===1 && (o.t||0) >= (S.t||0)){ S=o; pintar(); } }
+function commit(){
+  S.t = Date.now();
+  guardar();
+  try{ if(canal) canal.postMessage({ t:S.t, m:S.m, sorteo:S.sorteo, demo:S.demo }); }catch(e){}
+  pintar();
+}
+function recibir(o){
+  if(!o || (o.t || 0) <= (S.t || 0)) return;
+  S.m = o.m; S.sorteo = o.sorteo || {}; S.demo = !!o.demo; S.t = o.t;
+  pintar();
+}
 
 function M(id){ var m = S.m[id]; return m || { st:"pend", a:0, b:0, per:1, sets:[] }; }
 function crear(id){
@@ -328,10 +384,11 @@ function crear(id){
 function cambiar(id, fn){
   var m = crear(id);
   var h = m.h || [];
-  h.push(JSON.stringify({ st:m.st, a:m.a, b:m.b, per:m.per, sets:m.sets, t0:m.t0, dA:m.dA, dB:m.dB, eqs:m.eqs, fin:m.fin }));
+  h.push(JSON.stringify({ st:m.st, a:m.a, b:m.b, per:m.per, sets:m.sets, t0:m.t0, da:m.da, db:m.db, eqs:m.eqs, fin:m.fin }));
   if(h.length > 25) h.shift();
   fn(m);
   m.h = h;
+  encolar(id);
   commit();
 }
 function deshacer(id){
@@ -340,7 +397,146 @@ function deshacer(id){
   var prev = JSON.parse(m.h.pop());
   prev.h = m.h;
   S.m[id] = prev;
+  encolar(id);
   commit();
+}
+
+/* ---------- traducción entre la página y la base ---------- */
+function fila(m){
+  return { st:m.st, a:m.a | 0, b:m.b | 0, per:m.per || 1,
+           t0: m.t0 ? new Date(m.t0).toISOString() : null,
+           sets: m.sets || [],
+           da: (m.da == null ? null : m.da),
+           db: (m.db == null ? null : m.db),
+           eqs: m.eqs || null,
+           fin: m.fin ? new Date(m.fin).toISOString() : null };
+}
+function deFila(r){
+  return { st:r.st, a:r.a, b:r.b, per:r.per,
+           t0: r.t0 ? Date.parse(r.t0) : null,
+           sets: r.sets || [],
+           da: r.da, db: r.db, eqs: r.eqs || null,
+           fin: r.fin ? Date.parse(r.fin) : null };
+}
+
+/* ---------- sesión de docente ---------- */
+var SESION = null;
+try{ SESION = JSON.parse(localStorage.getItem("deportivas2026.sesion") || "null"); }catch(e){}
+function guardarSesion(s){
+  SESION = s;
+  try{
+    if(s) localStorage.setItem("deportivas2026.sesion", JSON.stringify(s));
+    else localStorage.removeItem("deportivas2026.sesion");
+  }catch(e){}
+}
+function docente(){ return !EN_LINEA || !!(SESION && SESION.access_token); }
+function entrar(correo, clave){
+  return fetch(SB.url + "/auth/v1/token?grant_type=password", {
+    method:"POST", headers:{ apikey:SB.key, "Content-Type":"application/json" },
+    body: JSON.stringify({ email:correo, password:clave })
+  }).then(function(r){
+    return r.json().then(function(d){
+      if(!r.ok) throw new Error(d.error_description || d.msg || d.message || "No se pudo entrar");
+      guardarSesion(d);
+      return d;
+    });
+  });
+}
+function refrescar(){
+  if(!SESION || !SESION.refresh_token) return Promise.reject(new Error("sin sesión"));
+  return fetch(SB.url + "/auth/v1/token?grant_type=refresh_token", {
+    method:"POST", headers:{ apikey:SB.key, "Content-Type":"application/json" },
+    body: JSON.stringify({ refresh_token: SESION.refresh_token })
+  }).then(function(r){
+    if(!r.ok){ guardarSesion(null); throw new Error("sesión vencida"); }
+    return r.json().then(function(d){ guardarSesion(d); return d; });
+  });
+}
+
+/* ---------- llamadas a la base ---------- */
+function api(metodo, ruta, cuerpo, reintento){
+  var cab = { apikey:SB.key, "Content-Type":"application/json" };
+  cab.Authorization = "Bearer " + ((SESION && SESION.access_token) ? SESION.access_token : SB.key);
+  if(metodo !== "GET") cab.Prefer = "return=minimal";
+  return fetch(SB.url + ruta, {
+    method:metodo, headers:cab, cache:"no-store",
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined
+  }).then(function(r){
+    var d = r.headers.get("Date");
+    if(d){ var t = Date.parse(d); if(t) SKEW = t - Date.now(); }
+    if((r.status === 401 || r.status === 403) && !reintento && SESION && SESION.refresh_token){
+      return refrescar().then(function(){ return api(metodo, ruta, cuerpo, true); });
+    }
+    if(r.status === 401 || r.status === 403){
+      var e = new Error("sin permiso para cargar resultados"); e.auth = true; throw e;
+    }
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    if(r.status === 204) return null;
+    return r.json();
+  });
+}
+
+/* ---------- subida de cambios, con cola para cuando no hay señal ---------- */
+var subiendo = false;
+function encolar(id){
+  if(!EN_LINEA) return;
+  if(COLA.indexOf(id) < 0) COLA.push(id);
+  CONEX = "guardando";
+  vaciarCola();
+}
+function vaciarCola(){
+  if(!EN_LINEA || subiendo || !COLA.length) return;
+  subiendo = true;
+  var id = COLA[0];
+  api("PATCH", "/rest/v1/partidos?id=eq." + encodeURIComponent(id), fila(M(id)))
+    .then(function(){
+      subiendo = false;
+      if(COLA[0] === id) COLA.shift();
+      guardar();
+      if(COLA.length) vaciarCola();
+      else { CONEX = "al-dia"; indicador(); }
+    })
+    .catch(function(e){
+      subiendo = false;
+      CONEX = e && e.auth ? "sin-sesion" : "sin-senal";
+      indicador();
+    });
+}
+
+/* ---------- traer novedades ---------- */
+function sincronizar(completo){
+  if(!EN_LINEA) return Promise.resolve();
+  return api("GET", "/rest/v1/rpc/sync?desde=" + (completo ? 0 : REV))
+    .then(function(d){
+      if(!d) return;
+      if(d.ahora){ var t = Date.parse(d.ahora); if(t) SKEW = t - Date.now(); }
+      var cambio = false, i;
+      var lista = d.partidos || [];
+      for(i = 0; i < lista.length; i++){
+        var r = lista[i];
+        if(COLA.indexOf(r.id) >= 0) continue;   /* hay algo mío sin subir: no lo piso */
+        var nuevo = deFila(r), viejo = S.m[r.id];
+        if(viejo && viejo.h) nuevo.h = viejo.h;
+        S.m[r.id] = nuevo;
+        cambio = true;
+      }
+      if(d.ajustes){
+        if(d.ajustes.sorteo){ S.sorteo = d.ajustes.sorteo; cambio = true; }
+        if(d.ajustes.intervalo) INTERVALO = d.ajustes.intervalo;
+      }
+      if(d.rev != null && d.rev > REV) REV = d.rev;
+      CONEX = COLA.length ? "guardando" : "al-dia";
+      if(cambio){ guardar(); pintar(); } else { guardar(); indicador(); }
+    })
+    .catch(function(e){
+      CONEX = e && e.auth ? "sin-sesion" : "sin-senal";
+      indicador();
+    });
+}
+function guardarSorteo(){
+  if(!EN_LINEA) return;
+  api("PATCH", "/rest/v1/ajustes?clave=eq.sorteo", { valor:S.sorteo })
+    .catch(function(){ CONEX = "sin-senal"; indicador(); });
 }
 
 /* ---------- marcador ---------- */
@@ -358,7 +554,7 @@ function ganador(m, d){
   var t = tanteo(m, d);
   if(t.a > t.b) return 1;
   if(t.b > t.a) return 2;
-  if(m.dA != null && m.dB != null){ if(m.dA > m.dB) return 1; if(m.dB > m.dA) return 2; }
+  if(m.da != null && m.db != null){ if(m.da > m.db) return 1; if(m.db > m.da) return 2; }
   return 0;
 }
 function puntoSet(m){ return m.sets.length < 2 ? 10 : 8; }
@@ -366,7 +562,7 @@ function sumar(m, d, lado, n){
   if(m.st !== "live") return;
   if(dep(d).sets){
     var y = tanteo(m, d);
-    if(y.a === 2 || y.b === 2){ m.st = "fin"; m.fin = Date.now(); return; }  /* ya estaba ganado */
+    if(y.a === 2 || y.b === 2){ m.st = "fin"; m.fin = ahora(); return; }  /* ya estaba ganado */
   }
   if(lado === 0) m.a += n; else m.b += n;
   if(!dep(d).sets) return;
@@ -375,12 +571,12 @@ function sumar(m, d, lado, n){
     m.sets.push([m.a, m.b]);
     m.a = 0; m.b = 0;
     var t = tanteo(m, d);
-    if(t.a === 2 || t.b === 2){ m.st = "fin"; m.fin = Date.now(); }
+    if(t.a === 2 || t.b === 2){ m.st = "fin"; m.fin = ahora(); }
   }
 }
 function restante(m){
   if(m.st !== "live" || !m.t0) return null;
-  return MINUTOS*60000 - (Date.now() - m.t0);
+  return MINUTOS*60000 - (ahora() - m.t0);
 }
 function mmss(ms){
   if(ms < 0) ms = 0;
@@ -487,7 +683,11 @@ function turno(c){ return c === 6 ? "Final" : ("Ronda " + (c < 3 ? 1 : 2) + " ·
 
 
 /* ---------- estado de la ventana (no se comparte) ---------- */
-var UI = { jor:"cb", tab:"vivo", abierto:null, confirmar:null, pin:false, proyIdx:0 };
+function jornadaDeHoy(){
+  var h = new Date();   /* el lunes 21 juega el Ciclo Básico; el martes 22, el Orientado */
+  return (h.getFullYear() === 2026 && h.getMonth() === 8 && h.getDate() >= 22) ? "co" : "cb";
+}
+var UI = { jor:jornadaDeHoy(), tab:"vivo", abierto:null, confirmar:null, proyIdx:0 };
 try{
   var g = sessionStorage.getItem("deportivas2026.ui");
   if(g){
@@ -496,6 +696,40 @@ try{
   }
 }catch(e){}
 function guardarUI(){ try{ sessionStorage.setItem("deportivas2026.ui", JSON.stringify(UI)); }catch(e){} }
+
+/* ---------- tema: automático, claro u oscuro, a elección de cada uno ---------- */
+var TEMAS = [
+  { id:"auto",  lab:"Tema: automático" },
+  { id:"light", lab:"Tema: claro" },
+  { id:"dark",  lab:"Tema: oscuro" }
+];
+var TEMA = "auto";
+try{ TEMA = localStorage.getItem("deportivas2026.tema") || "auto"; }catch(e){}
+function aplicarTema(){
+  var raiz = document.documentElement, b = document.getElementById("btn-tema"), i;
+  if(TEMA === "auto") raiz.removeAttribute("data-theme");
+  else raiz.setAttribute("data-theme", TEMA);
+  try{ localStorage.setItem("deportivas2026.tema", TEMA); }catch(e){}
+  for(i = 0; i < TEMAS.length; i++) if(TEMAS[i].id === TEMA && b) b.textContent = TEMAS[i].lab;
+}
+function rotarTema(){
+  var i = 0, j;
+  for(j = 0; j < TEMAS.length; j++) if(TEMAS[j].id === TEMA) i = j;
+  TEMA = TEMAS[(i + 1) % TEMAS.length].id;
+  aplicarTema();
+}
+
+/* ---------- indicador de conexión ---------- */
+function indicador(){
+  var c = document.getElementById("chip-sync");
+  if(!c) return;
+  var texto = { "al-dia":"Al día", "guardando":"Guardando…", "sin-senal":"Sin señal",
+                "sin-sesion":"Sesión vencida", "esperando":"Conectando…", "local":"" };
+  var t = texto[CONEX] || "";
+  c.hidden = !t;
+  c.className = "estado-chip" + (CONEX === "sin-senal" || CONEX === "sin-sesion" ? " mal" : "");
+  c.innerHTML = t ? '<i></i>' + t + (COLA.length ? " (" + COLA.length + ")" : "") : "";
+}
 
 var TABS = [
   { id:"vivo",   lab:"En vivo" },
@@ -526,8 +760,8 @@ function bloqueCancha(j, d, c, cat){
     meta.push("Sets: " + m.sets.map(function(s){ return s[0] + "-" + s[1]; }).join(" · "));
   }
   if(!d.sets && m.st === "live") meta.push(m.per === 1 ? "1.er tiempo" : "2.do tiempo");
-  if(m.st === "fin" && m.dA != null){
-    meta.push((d.defin === "penales" ? "Penales" : "Tiros libres") + ": " + m.dA + "-" + m.dB);
+  if(m.st === "fin" && m.da != null){
+    meta.push((d.defin === "penales" ? "Penales" : "Tiros libres") + ": " + m.da + "-" + m.db);
   }
   if(c === 6 && !e[0]) e = ["1.°", "2.°"];
   return '<div class="cancha">'
@@ -692,7 +926,7 @@ function controlCancha(j, d, c, cat){
     if(c === 6 && d.defin && t.a === t.b){
       h += '<p class="meta" style="margin-top:6px">Final empatada: se define por ' + d.defin + " (artículo 6).</p>"
         + '<div class="ctrl">' + [0,1].map(function(lado){
-            var v = lado === 0 ? (m.dA || 0) : (m.dB || 0);
+            var v = lado === 0 ? (m.da || 0) : (m.db || 0);
             return '<div class="equipo"><div class="quien">' + e[lado] + '</div><b class="num">' + v + '</b><div class="sumar">'
               + '<button data-act="def" data-id="' + id + '" data-lado="' + lado + '" data-n="1">+1</button>'
               + '<button data-act="def" data-id="' + id + '" data-lado="' + lado + '" data-n="-1">−1</button></div></div>';
@@ -702,20 +936,28 @@ function controlCancha(j, d, c, cat){
   return h + "</div>";
 }
 
+var AVISO_PANEL = "";
 function vistaPanel(j){
-  if(!UI.pin){
+  if(!docente()){
     return '<div class="candado"><h2>Panel docente</h2>'
-      + '<p class="intro" style="margin:6px 0 0">Para cargar resultados hace falta el PIN.</p>'
-      + '<div><input id="pin" type="text" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off"></div>'
-      + '<button class="btn" data-act="pin">Entrar</button>'
-      + '<p class="meta" style="justify-content:center;margin-top:12px">PIN de demostración: <b>2026</b>. '
-      + "En el boceto no protege nada: es para mostrar cómo sería.</p></div>";
+      + '<p class="intro" style="margin:4px 0 6px;text-align:center">Cargan resultados solo los profesores de Educación Física.</p>'
+      + '<div class="campo"><label for="correo">Correo</label>'
+      + '<input id="correo" type="email" inputmode="email" autocomplete="username" placeholder="nombre@correo.com"></div>'
+      + '<div class="campo"><label for="clave">Contraseña</label>'
+      + '<input id="clave" type="password" autocomplete="current-password" placeholder="••••••••"></div>'
+      + (AVISO_PANEL ? '<p class="meta mal">' + AVISO_PANEL + "</p>" : "")
+      + '<div class="btn-fila" style="justify-content:center;margin-top:12px">'
+      + '<button class="btn" data-act="entrar">Entrar</button></div></div>';
   }
-  var h = '<div class="aviso"><b>Boceto.</b> Lo que cargues acá se ve al instante en las otras pestañas de este navegador '
-    + "y queda guardado en esta computadora. Para que lo vean los estudiantes desde el celular hace falta publicarlo en un sitio real.</div>"
+  var h = '<div class="aviso"><b>Cuidado:</b> lo que cargues acá lo ven todos, en el proyector y en los celulares, '
+    + "a los pocos segundos. Si se corta internet podés seguir cargando igual: los cambios se guardan y se suben solos "
+    + "cuando vuelve la señal.</div>"
+    + (AVISO_PANEL ? '<p class="meta mal">' + AVISO_PANEL + "</p>" : "")
     + '<div class="btn-fila" style="margin-bottom:16px">'
-    + '<button class="btn sec" data-act="demo">Cargar resultados de ejemplo</button>'
-    + '<button class="btn sec" data-act="reset">Reiniciar la jornada</button></div>';
+    + '<button class="btn sec" data-act="demo">Cargar ejemplo para practicar</button>'
+    + '<button class="btn sec" data-act="reset">Poner la jornada en cero</button>'
+    + (EN_LINEA ? '<button class="btn sec" data-act="salir">Cerrar sesión</button>' : "")
+    + "</div>";
   h += DEPORTES.map(function(d){
     var lista = "";
     for(var c=0;c<7;c++){
@@ -745,8 +987,8 @@ function vistaProyector(j){
       }
     }
   }
-  var ahora = new Date();
-  var reloj = ahora.getHours() + ":" + (ahora.getMinutes() < 10 ? "0" : "") + ahora.getMinutes();
+  var hora = new Date(ahora());
+  var reloj = hora.getHours() + ":" + (hora.getMinutes() < 10 ? "0" : "") + hora.getMinutes();
   var d = DEPORTES[UI.proyIdx % DEPORTES.length];
   var h = '<button class="btn sec salir" data-act="salirproy">Salir</button>'
     + '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:14px">'
@@ -762,6 +1004,9 @@ function vistaProyector(j){
       return '<i class="' + (i === UI.proyIdx % DEPORTES.length ? "on" : "") + '"></i>';
     }).join("") + '<span class="eyebrow" style="margin-left:8px">Tabla de ' + d.nombre + "</span></div>";
   h += '<div class="tablas">' + tablaHTML(j, d, CATS[0]) + tablaHTML(j, d, CATS[1]) + "</div>";
+  h += '<div class="qr"><img src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0nMS4wJyBlbmNvZGluZz0nVVRGLTgnPz4KPHN2ZyB3aWR0aD0iNTEuOG1tIiBoZWlnaHQ9IjUxLjhtbSIgdmVyc2lvbj0iMS4xIiB2aWV3Qm94PSIwIDAgNTEuOCA1MS44IiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0yLjgsMi44SDQuMlY0LjJIMi44ek00LjIsMi44SDUuNlY0LjJINC4yek01LjYsMi44SDdWNC4ySDUuNnpNNywyLjhIOC40VjQuMkg3ek04LjQsMi44SDkuOFY0LjJIOC40ek05LjgsMi44SDExLjJWNC4ySDkuOHpNMTEuMiwyLjhIMTIuNlY0LjJIMTEuMnpNMTUuNCwyLjhIMTYuOFY0LjJIMTUuNHpNMTguMiwyLjhIMTkuNlY0LjJIMTguMnpNMTkuNiwyLjhIMjFWNC4ySDE5LjZ6TTIyLjQsMi44SDIzLjhWNC4ySDIyLjR6TTI1LjIsMi44SDI2LjZWNC4ySDI1LjJ6TTI4LDIuOEgyOS40VjQuMkgyOHpNMjkuNCwyLjhIMzAuOFY0LjJIMjkuNHpNMzAuOCwyLjhIMzIuMlY0LjJIMzAuOHpNMzIuMiwyLjhIMzMuNlY0LjJIMzIuMnpNMzMuNiwyLjhIMzVWNC4ySDMzLjZ6TTM1LDIuOEgzNi40VjQuMkgzNXpNMzkuMiwyLjhINDAuNlY0LjJIMzkuMnpNNDAuNiwyLjhINDJWNC4ySDQwLjZ6TTQyLDIuOEg0My40VjQuMkg0MnpNNDMuNCwyLjhINDQuOFY0LjJINDMuNHpNNDQuOCwyLjhINDYuMlY0LjJINDQuOHpNNDYuMiwyLjhINDcuNlY0LjJINDYuMnpNNDcuNiwyLjhINDlWNC4ySDQ3LjZ6TTIuOCw0LjJINC4yVjUuNkgyLjh6TTExLjIsNC4ySDEyLjZWNS42SDExLjJ6TTE5LjYsNC4ySDIxVjUuNkgxOS42ek0yMy44LDQuMkgyNS4yVjUuNkgyMy44ek0yOCw0LjJIMjkuNFY1LjZIMjh6TTM5LjIsNC4ySDQwLjZWNS42SDM5LjJ6TTQ3LjYsNC4ySDQ5VjUuNkg0Ny42ek0yLjgsNS42SDQuMlY3SDIuOHpNNS42LDUuNkg3VjdINS42ek03LDUuNkg4LjRWN0g3ek04LjQsNS42SDkuOFY3SDguNHpNMTEuMiw1LjZIMTIuNlY3SDExLjJ6TTE0LDUuNkgxNS40VjdIMTR6TTIyLjQsNS42SDIzLjhWN0gyMi40ek0yMy44LDUuNkgyNS4yVjdIMjMuOHpNMzAuOCw1LjZIMzIuMlY3SDMwLjh6TTMyLjIsNS42SDMzLjZWN0gzMi4yek0zMy42LDUuNkgzNVY3SDMzLjZ6TTM2LjQsNS42SDM3LjhWN0gzNi40ek0zOS4yLDUuNkg0MC42VjdIMzkuMnpNNDIsNS42SDQzLjRWN0g0MnpNNDMuNCw1LjZINDQuOFY3SDQzLjR6TTQ0LjgsNS42SDQ2LjJWN0g0NC44ek00Ny42LDUuNkg0OVY3SDQ3LjZ6TTIuOCw3SDQuMlY4LjRIMi44ek01LjYsN0g3VjguNEg1LjZ6TTcsN0g4LjRWOC40SDd6TTguNCw3SDkuOFY4LjRIOC40ek0xMS4yLDdIMTIuNlY4LjRIMTEuMnpNMTQsN0gxNS40VjguNEgxNHpNMTUuNCw3SDE2LjhWOC40SDE1LjR6TTE2LjgsN0gxOC4yVjguNEgxNi44ek0yOCw3SDI5LjRWOC40SDI4ek0yOS40LDdIMzAuOFY4LjRIMjkuNHpNMzUsN0gzNi40VjguNEgzNXpNMzkuMiw3SDQwLjZWOC40SDM5LjJ6TTQyLDdINDMuNFY4LjRINDJ6TTQzLjQsN0g0NC44VjguNEg0My40ek00NC44LDdINDYuMlY4LjRINDQuOHpNNDcuNiw3SDQ5VjguNEg0Ny42ek0yLjgsOC40SDQuMlY5LjhIMi44ek01LjYsOC40SDdWOS44SDUuNnpNNyw4LjRIOC40VjkuOEg3ek04LjQsOC40SDkuOFY5LjhIOC40ek0xMS4yLDguNEgxMi42VjkuOEgxMS4yek0xNCw4LjRIMTUuNFY5LjhIMTR6TTE1LjQsOC40SDE2LjhWOS44SDE1LjR6TTE2LjgsOC40SDE4LjJWOS44SDE2Ljh6TTE4LjIsOC40SDE5LjZWOS44SDE4LjJ6TTIyLjQsOC40SDIzLjhWOS44SDIyLjR6TTIzLjgsOC40SDI1LjJWOS44SDIzLjh6TTI1LjIsOC40SDI2LjZWOS44SDI1LjJ6TTI2LjYsOC40SDI4VjkuOEgyNi42ek0zMC44LDguNEgzMi4yVjkuOEgzMC44ek0zMi4yLDguNEgzMy42VjkuOEgzMi4yek0zNSw4LjRIMzYuNFY5LjhIMzV6TTM5LjIsOC40SDQwLjZWOS44SDM5LjJ6TTQyLDguNEg0My40VjkuOEg0MnpNNDMuNCw4LjRINDQuOFY5LjhINDMuNHpNNDQuOCw4LjRINDYuMlY5LjhINDQuOHpNNDcuNiw4LjRINDlWOS44SDQ3LjZ6TTIuOCw5LjhINC4yVjExLjJIMi44ek0xMS4yLDkuOEgxMi42VjExLjJIMTEuMnpNMTQsOS44SDE1LjRWMTEuMkgxNHpNMTUuNCw5LjhIMTYuOFYxMS4ySDE1LjR6TTE5LjYsOS44SDIxVjExLjJIMTkuNnpNMjIuNCw5LjhIMjMuOFYxMS4ySDIyLjR6TTI2LjYsOS44SDI4VjExLjJIMjYuNnpNMjkuNCw5LjhIMzAuOFYxMS4ySDI5LjR6TTMyLjIsOS44SDMzLjZWMTEuMkgzMi4yek0zOS4yLDkuOEg0MC42VjExLjJIMzkuMnpNNDcuNiw5LjhINDlWMTEuMkg0Ny42ek0yLjgsMTEuMkg0LjJWMTIuNkgyLjh6TTQuMiwxMS4ySDUuNlYxMi42SDQuMnpNNS42LDExLjJIN1YxMi42SDUuNnpNNywxMS4ySDguNFYxMi42SDd6TTguNCwxMS4ySDkuOFYxMi42SDguNHpNOS44LDExLjJIMTEuMlYxMi42SDkuOHpNMTEuMiwxMS4ySDEyLjZWMTIuNkgxMS4yek0xNCwxMS4ySDE1LjRWMTIuNkgxNHpNMTYuOCwxMS4ySDE4LjJWMTIuNkgxNi44ek0xOS42LDExLjJIMjFWMTIuNkgxOS42ek0yMi40LDExLjJIMjMuOFYxMi42SDIyLjR6TTI1LjIsMTEuMkgyNi42VjEyLjZIMjUuMnpNMjgsMTEuMkgyOS40VjEyLjZIMjh6TTMwLjgsMTEuMkgzMi4yVjEyLjZIMzAuOHpNMzMuNiwxMS4ySDM1VjEyLjZIMzMuNnpNMzYuNCwxMS4ySDM3LjhWMTIuNkgzNi40ek0zOS4yLDExLjJINDAuNlYxMi42SDM5LjJ6TTQwLjYsMTEuMkg0MlYxMi42SDQwLjZ6TTQyLDExLjJINDMuNFYxMi42SDQyek00My40LDExLjJINDQuOFYxMi42SDQzLjR6TTQ0LjgsMTEuMkg0Ni4yVjEyLjZINDQuOHpNNDYuMiwxMS4ySDQ3LjZWMTIuNkg0Ni4yek00Ny42LDExLjJINDlWMTIuNkg0Ny42ek0xNCwxMi42SDE1LjRWMTRIMTR6TTE1LjQsMTIuNkgxNi44VjE0SDE1LjR6TTE4LjIsMTIuNkgxOS42VjE0SDE4LjJ6TTIyLjQsMTIuNkgyMy44VjE0SDIyLjR6TTI1LjIsMTIuNkgyNi42VjE0SDI1LjJ6TTI5LjQsMTIuNkgzMC44VjE0SDI5LjR6TTMwLjgsMTIuNkgzMi4yVjE0SDMwLjh6TTMyLjIsMTIuNkgzMy42VjE0SDMyLjJ6TTM2LjQsMTIuNkgzNy44VjE0SDM2LjR6TTIuOCwxNEg0LjJWMTUuNEgyLjh6TTUuNiwxNEg3VjE1LjRINS42ek03LDE0SDguNFYxNS40SDd6TTguNCwxNEg5LjhWMTUuNEg4LjR6TTkuOCwxNEgxMS4yVjE1LjRIOS44ek0xMS4yLDE0SDEyLjZWMTUuNEgxMS4yek0xNi44LDE0SDE4LjJWMTUuNEgxNi44ek0xOC4yLDE0SDE5LjZWMTUuNEgxOC4yek0xOS42LDE0SDIxVjE1LjRIMTkuNnpNMjEsMTRIMjIuNFYxNS40SDIxek0yMi40LDE0SDIzLjhWMTUuNEgyMi40ek0yNi42LDE0SDI4VjE1LjRIMjYuNnpNMjkuNCwxNEgzMC44VjE1LjRIMjkuNHpNMzMuNiwxNEgzNVYxNS40SDMzLjZ6TTM2LjQsMTRIMzcuOFYxNS40SDM2LjR6TTM5LjIsMTRINDAuNlYxNS40SDM5LjJ6TTQwLjYsMTRINDJWMTUuNEg0MC42ek00MiwxNEg0My40VjE1LjRINDJ6TTQzLjQsMTRINDQuOFYxNS40SDQzLjR6TTQ0LjgsMTRINDYuMlYxNS40SDQ0Ljh6TTUuNiwxNS40SDdWMTYuOEg1LjZ6TTE0LDE1LjRIMTUuNFYxNi44SDE0ek0xNi44LDE1LjRIMTguMlYxNi44SDE2Ljh6TTIxLDE1LjRIMjIuNFYxNi44SDIxek0yNS4yLDE1LjRIMjYuNlYxNi44SDI1LjJ6TTI2LjYsMTUuNEgyOFYxNi44SDI2LjZ6TTI5LjQsMTUuNEgzMC44VjE2LjhIMjkuNHpNMzAuOCwxNS40SDMyLjJWMTYuOEgzMC44ek0zNSwxNS40SDM2LjRWMTYuOEgzNXpNMzkuMiwxNS40SDQwLjZWMTYuOEgzOS4yek00MC42LDE1LjRINDJWMTYuOEg0MC42ek00My40LDE1LjRINDQuOFYxNi44SDQzLjR6TTQ0LjgsMTUuNEg0Ni4yVjE2LjhINDQuOHpNNDcuNiwxNS40SDQ5VjE2LjhINDcuNnpNNC4yLDE2LjhINS42VjE4LjJINC4yek03LDE2LjhIOC40VjE4LjJIN3pNOS44LDE2LjhIMTEuMlYxOC4ySDkuOHpNMTEuMiwxNi44SDEyLjZWMTguMkgxMS4yek0xNCwxNi44SDE1LjRWMTguMkgxNHpNMjEsMTYuOEgyMi40VjE4LjJIMjF6TTIyLjQsMTYuOEgyMy44VjE4LjJIMjIuNHpNMjMuOCwxNi44SDI1LjJWMTguMkgyMy44ek0yNi42LDE2LjhIMjhWMTguMkgyNi42ek0zMC44LDE2LjhIMzIuMlYxOC4ySDMwLjh6TTMyLjIsMTYuOEgzMy42VjE4LjJIMzIuMnpNMzMuNiwxNi44SDM1VjE4LjJIMzMuNnpNMzYuNCwxNi44SDM3LjhWMTguMkgzNi40ek0zNy44LDE2LjhIMzkuMlYxOC4ySDM3Ljh6TTM5LjIsMTYuOEg0MC42VjE4LjJIMzkuMnpNNDIsMTYuOEg0My40VjE4LjJINDJ6TTQ0LjgsMTYuOEg0Ni4yVjE4LjJINDQuOHpNNDYuMiwxNi44SDQ3LjZWMTguMkg0Ni4yek0yLjgsMTguMkg0LjJWMTkuNkgyLjh6TTQuMiwxOC4ySDUuNlYxOS42SDQuMnpNNywxOC4ySDguNFYxOS42SDd6TTkuOCwxOC4ySDExLjJWMTkuNkg5Ljh6TTE2LjgsMTguMkgxOC4yVjE5LjZIMTYuOHpNMjEsMTguMkgyMi40VjE5LjZIMjF6TTIzLjgsMTguMkgyNS4yVjE5LjZIMjMuOHpNMjUuMiwxOC4ySDI2LjZWMTkuNkgyNS4yek0yNi42LDE4LjJIMjhWMTkuNkgyNi42ek0yOCwxOC4ySDI5LjRWMTkuNkgyOHpNMjkuNCwxOC4ySDMwLjhWMTkuNkgyOS40ek0zMi4yLDE4LjJIMzMuNlYxOS42SDMyLjJ6TTMzLjYsMTguMkgzNVYxOS42SDMzLjZ6TTM1LDE4LjJIMzYuNFYxOS42SDM1ek0zNi40LDE4LjJIMzcuOFYxOS42SDM2LjR6TTM3LjgsMTguMkgzOS4yVjE5LjZIMzcuOHpNMzkuMiwxOC4ySDQwLjZWMTkuNkgzOS4yek00MiwxOC4ySDQzLjRWMTkuNkg0MnpNNDMuNCwxOC4ySDQ0LjhWMTkuNkg0My40ek00NC44LDE4LjJINDYuMlYxOS42SDQ0Ljh6TTQ2LjIsMTguMkg0Ny42VjE5LjZINDYuMnpNMi44LDE5LjZINC4yVjIxSDIuOHpNNS42LDE5LjZIN1YyMUg1LjZ6TTcsMTkuNkg4LjRWMjFIN3pNOC40LDE5LjZIOS44VjIxSDguNHpNOS44LDE5LjZIMTEuMlYyMUg5Ljh6TTExLjIsMTkuNkgxMi42VjIxSDExLjJ6TTE0LDE5LjZIMTUuNFYyMUgxNHpNMTkuNiwxOS42SDIxVjIxSDE5LjZ6TTIyLjQsMTkuNkgyMy44VjIxSDIyLjR6TTIzLjgsMTkuNkgyNS4yVjIxSDIzLjh6TTI1LjIsMTkuNkgyNi42VjIxSDI1LjJ6TTM2LjQsMTkuNkgzNy44VjIxSDM2LjR6TTM3LjgsMTkuNkgzOS4yVjIxSDM3Ljh6TTQwLjYsMTkuNkg0MlYyMUg0MC42ek00MiwxOS42SDQzLjRWMjFINDJ6TTQzLjQsMTkuNkg0NC44VjIxSDQzLjR6TTQ3LjYsMTkuNkg0OVYyMUg0Ny42ek0yLjgsMjFINC4yVjIyLjRIMi44ek00LjIsMjFINS42VjIyLjRINC4yek0xNCwyMUgxNS40VjIyLjRIMTR6TTE4LjIsMjFIMTkuNlYyMi40SDE4LjJ6TTE5LjYsMjFIMjFWMjIuNEgxOS42ek0yMSwyMUgyMi40VjIyLjRIMjF6TTIzLjgsMjFIMjUuMlYyMi40SDIzLjh6TTI4LDIxSDI5LjRWMjIuNEgyOHpNMzIuMiwyMUgzMy42VjIyLjRIMzIuMnpNMzMuNiwyMUgzNVYyMi40SDMzLjZ6TTM1LDIxSDM2LjRWMjIuNEgzNXpNMzcuOCwyMUgzOS4yVjIyLjRIMzcuOHpNMzkuMiwyMUg0MC42VjIyLjRIMzkuMnpNNDMuNCwyMUg0NC44VjIyLjRINDMuNHpNNDYuMiwyMUg0Ny42VjIyLjRINDYuMnpNNDcuNiwyMUg0OVYyMi40SDQ3LjZ6TTIuOCwyMi40SDQuMlYyMy44SDIuOHpNNywyMi40SDguNFYyMy44SDd6TTguNCwyMi40SDkuOFYyMy44SDguNHpNOS44LDIyLjRIMTEuMlYyMy44SDkuOHpNMTEuMiwyMi40SDEyLjZWMjMuOEgxMS4yek0xMi42LDIyLjRIMTRWMjMuOEgxMi42ek0xNS40LDIyLjRIMTYuOFYyMy44SDE1LjR6TTE2LjgsMjIuNEgxOC4yVjIzLjhIMTYuOHpNMjIuNCwyMi40SDIzLjhWMjMuOEgyMi40ek0yMy44LDIyLjRIMjUuMlYyMy44SDIzLjh6TTI1LjIsMjIuNEgyNi42VjIzLjhIMjUuMnpNMzAuOCwyMi40SDMyLjJWMjMuOEgzMC44ek0zMi4yLDIyLjRIMzMuNlYyMy44SDMyLjJ6TTMzLjYsMjIuNEgzNVYyMy44SDMzLjZ6TTM2LjQsMjIuNEgzNy44VjIzLjhIMzYuNHpNMzcuOCwyMi40SDM5LjJWMjMuOEgzNy44ek0zOS4yLDIyLjRINDAuNlYyMy44SDM5LjJ6TTQwLjYsMjIuNEg0MlYyMy44SDQwLjZ6TTQzLjQsMjIuNEg0NC44VjIzLjhINDMuNHpNNDYuMiwyMi40SDQ3LjZWMjMuOEg0Ni4yek0yLjgsMjMuOEg0LjJWMjUuMkgyLjh6TTEyLjYsMjMuOEgxNFYyNS4ySDEyLjZ6TTE1LjQsMjMuOEgxNi44VjI1LjJIMTUuNHpNMTguMiwyMy44SDE5LjZWMjUuMkgxOC4yek0yMSwyMy44SDIyLjRWMjUuMkgyMXpNMjMuOCwyMy44SDI1LjJWMjUuMkgyMy44ek0yOS40LDIzLjhIMzAuOFYyNS4ySDI5LjR6TTMwLjgsMjMuOEgzMi4yVjI1LjJIMzAuOHpNMzIuMiwyMy44SDMzLjZWMjUuMkgzMi4yek0zMy42LDIzLjhIMzVWMjUuMkgzMy42ek0zNSwyMy44SDM2LjRWMjUuMkgzNXpNMzcuOCwyMy44SDM5LjJWMjUuMkgzNy44ek0zOS4yLDIzLjhINDAuNlYyNS4ySDM5LjJ6TTQwLjYsMjMuOEg0MlYyNS4ySDQwLjZ6TTQ0LjgsMjMuOEg0Ni4yVjI1LjJINDQuOHpNNC4yLDI1LjJINS42VjI2LjZINC4yek03LDI1LjJIOC40VjI2LjZIN3pNMTEuMiwyNS4ySDEyLjZWMjYuNkgxMS4yek0xMi42LDI1LjJIMTRWMjYuNkgxMi42ek0xNCwyNS4ySDE1LjRWMjYuNkgxNHpNMTUuNCwyNS4ySDE2LjhWMjYuNkgxNS40ek0yMSwyNS4ySDIyLjRWMjYuNkgyMXpNMjIuNCwyNS4ySDIzLjhWMjYuNkgyMi40ek0yMy44LDI1LjJIMjUuMlYyNi42SDIzLjh6TTI1LjIsMjUuMkgyNi42VjI2LjZIMjUuMnpNMjYuNiwyNS4ySDI4VjI2LjZIMjYuNnpNMjkuNCwyNS4ySDMwLjhWMjYuNkgyOS40ek0zMy42LDI1LjJIMzVWMjYuNkgzMy42ek0zNy44LDI1LjJIMzkuMlYyNi42SDM3Ljh6TTQwLjYsMjUuMkg0MlYyNi42SDQwLjZ6TTQyLDI1LjJINDMuNFYyNi42SDQyek00Ny42LDI1LjJINDlWMjYuNkg0Ny42ek0yLjgsMjYuNkg0LjJWMjhIMi44ek01LjYsMjYuNkg3VjI4SDUuNnpNMTUuNCwyNi42SDE2LjhWMjhIMTUuNHpNMTguMiwyNi42SDE5LjZWMjhIMTguMnpNMjEsMjYuNkgyMi40VjI4SDIxek0yMi40LDI2LjZIMjMuOFYyOEgyMi40ek0yNS4yLDI2LjZIMjYuNlYyOEgyNS4yek0yOCwyNi42SDI5LjRWMjhIMjh6TTI5LjQsMjYuNkgzMC44VjI4SDI5LjR6TTMwLjgsMjYuNkgzMi4yVjI4SDMwLjh6TTMyLjIsMjYuNkgzMy42VjI4SDMyLjJ6TTM1LDI2LjZIMzYuNFYyOEgzNXpNMzkuMiwyNi42SDQwLjZWMjhIMzkuMnpNNDAuNiwyNi42SDQyVjI4SDQwLjZ6TTQzLjQsMjYuNkg0NC44VjI4SDQzLjR6TTQ0LjgsMjYuNkg0Ni4yVjI4SDQ0Ljh6TTQ3LjYsMjYuNkg0OVYyOEg0Ny42ek0yLjgsMjhINC4yVjI5LjRIMi44ek04LjQsMjhIOS44VjI5LjRIOC40ek0xMS4yLDI4SDEyLjZWMjkuNEgxMS4yek0xNCwyOEgxNS40VjI5LjRIMTR6TTE1LjQsMjhIMTYuOFYyOS40SDE1LjR6TTE2LjgsMjhIMTguMlYyOS40SDE2Ljh6TTIxLDI4SDIyLjRWMjkuNEgyMXpNMjIuNCwyOEgyMy44VjI5LjRIMjIuNHpNMjMuOCwyOEgyNS4yVjI5LjRIMjMuOHpNMjUuMiwyOEgyNi42VjI5LjRIMjUuMnpNMjgsMjhIMjkuNFYyOS40SDI4ek0zMC44LDI4SDMyLjJWMjkuNEgzMC44ek0zNi40LDI4SDM3LjhWMjkuNEgzNi40ek00MC42LDI4SDQyVjI5LjRINDAuNnpNNDIsMjhINDMuNFYyOS40SDQyek00NC44LDI4SDQ2LjJWMjkuNEg0NC44ek00Ni4yLDI4SDQ3LjZWMjkuNEg0Ni4yek04LjQsMjkuNEg5LjhWMzAuOEg4LjR6TTE1LjQsMjkuNEgxNi44VjMwLjhIMTUuNHpNMTguMiwyOS40SDE5LjZWMzAuOEgxOC4yek0yMy44LDI5LjRIMjUuMlYzMC44SDIzLjh6TTMwLjgsMjkuNEgzMi4yVjMwLjhIMzAuOHpNMzIuMiwyOS40SDMzLjZWMzAuOEgzMi4yek0zNSwyOS40SDM2LjRWMzAuOEgzNXpNMzYuNCwyOS40SDM3LjhWMzAuOEgzNi40ek0zOS4yLDI5LjRINDAuNlYzMC44SDM5LjJ6TTQwLjYsMjkuNEg0MlYzMC44SDQwLjZ6TTQyLDI5LjRINDMuNFYzMC44SDQyek00My40LDI5LjRINDQuOFYzMC44SDQzLjR6TTQ0LjgsMjkuNEg0Ni4yVjMwLjhINDQuOHpNNDcuNiwyOS40SDQ5VjMwLjhINDcuNnpNNC4yLDMwLjhINS42VjMyLjJINC4yek0xMS4yLDMwLjhIMTIuNlYzMi4ySDExLjJ6TTE0LDMwLjhIMTUuNFYzMi4ySDE0ek0xNi44LDMwLjhIMTguMlYzMi4ySDE2Ljh6TTE4LjIsMzAuOEgxOS42VjMyLjJIMTguMnpNMTkuNiwzMC44SDIxVjMyLjJIMTkuNnpNMjEsMzAuOEgyMi40VjMyLjJIMjF6TTIyLjQsMzAuOEgyMy44VjMyLjJIMjIuNHpNMjgsMzAuOEgyOS40VjMyLjJIMjh6TTI5LjQsMzAuOEgzMC44VjMyLjJIMjkuNHpNMzcuOCwzMC44SDM5LjJWMzIuMkgzNy44ek00MiwzMC44SDQzLjRWMzIuMkg0MnpNNDMuNCwzMC44SDQ0LjhWMzIuMkg0My40ek00Ni4yLDMwLjhINDcuNlYzMi4ySDQ2LjJ6TTQ3LjYsMzAuOEg0OVYzMi4ySDQ3LjZ6TTIuOCwzMi4ySDQuMlYzMy42SDIuOHpNNywzMi4ySDguNFYzMy42SDd6TTguNCwzMi4ySDkuOFYzMy42SDguNHpNMTUuNCwzMi4ySDE2LjhWMzMuNkgxNS40ek0xOC4yLDMyLjJIMTkuNlYzMy42SDE4LjJ6TTE5LjYsMzIuMkgyMVYzMy42SDE5LjZ6TTIzLjgsMzIuMkgyNS4yVjMzLjZIMjMuOHpNMjUuMiwzMi4ySDI2LjZWMzMuNkgyNS4yek0yOS40LDMyLjJIMzAuOFYzMy42SDI5LjR6TTMyLjIsMzIuMkgzMy42VjMzLjZIMzIuMnpNMzMuNiwzMi4ySDM1VjMzLjZIMzMuNnpNMzUsMzIuMkgzNi40VjMzLjZIMzV6TTM3LjgsMzIuMkgzOS4yVjMzLjZIMzcuOHpNMzkuMiwzMi4ySDQwLjZWMzMuNkgzOS4yek00My40LDMyLjJINDQuOFYzMy42SDQzLjR6TTQ3LjYsMzIuMkg0OVYzMy42SDQ3LjZ6TTIuOCwzMy42SDQuMlYzNUgyLjh6TTguNCwzMy42SDkuOFYzNUg4LjR6TTkuOCwzMy42SDExLjJWMzVIOS44ek0xMS4yLDMzLjZIMTIuNlYzNUgxMS4yek0xNi44LDMzLjZIMTguMlYzNUgxNi44ek0zMi4yLDMzLjZIMzMuNlYzNUgzMi4yek0zNy44LDMzLjZIMzkuMlYzNUgzNy44ek00My40LDMzLjZINDQuOFYzNUg0My40ek00Ni4yLDMzLjZINDcuNlYzNUg0Ni4yek0yLjgsMzVINC4yVjM2LjRIMi44ek05LjgsMzVIMTEuMlYzNi40SDkuOHpNMTQsMzVIMTUuNFYzNi40SDE0ek0xNS40LDM1SDE2LjhWMzYuNEgxNS40ek0xNi44LDM1SDE4LjJWMzYuNEgxNi44ek0xOC4yLDM1SDE5LjZWMzYuNEgxOC4yek0yNS4yLDM1SDI2LjZWMzYuNEgyNS4yek0yOCwzNUgyOS40VjM2LjRIMjh6TTI5LjQsMzVIMzAuOFYzNi40SDI5LjR6TTMwLjgsMzVIMzIuMlYzNi40SDMwLjh6TTMyLjIsMzVIMzMuNlYzNi40SDMyLjJ6TTMzLjYsMzVIMzVWMzYuNEgzMy42ek0zNi40LDM1SDM3LjhWMzYuNEgzNi40ek0zOS4yLDM1SDQwLjZWMzYuNEgzOS4yek00My40LDM1SDQ0LjhWMzYuNEg0My40ek00NC44LDM1SDQ2LjJWMzYuNEg0NC44ek00Ni4yLDM1SDQ3LjZWMzYuNEg0Ni4yek00Ny42LDM1SDQ5VjM2LjRINDcuNnpNMi44LDM2LjRINC4yVjM3LjhIMi44ek01LjYsMzYuNEg3VjM3LjhINS42ek03LDM2LjRIOC40VjM3LjhIN3pNOC40LDM2LjRIOS44VjM3LjhIOC40ek0xMS4yLDM2LjRIMTIuNlYzNy44SDExLjJ6TTEyLjYsMzYuNEgxNFYzNy44SDEyLjZ6TTE0LDM2LjRIMTUuNFYzNy44SDE0ek0xOC4yLDM2LjRIMTkuNlYzNy44SDE4LjJ6TTE5LjYsMzYuNEgyMVYzNy44SDE5LjZ6TTI2LjYsMzYuNEgyOFYzNy44SDI2LjZ6TTI4LDM2LjRIMjkuNFYzNy44SDI4ek0zMy42LDM2LjRIMzVWMzcuOEgzMy42ek0zNSwzNi40SDM2LjRWMzcuOEgzNXpNMzYuNCwzNi40SDM3LjhWMzcuOEgzNi40ek0zNy44LDM2LjRIMzkuMlYzNy44SDM3Ljh6TTM5LjIsMzYuNEg0MC42VjM3LjhIMzkuMnpNNDAuNiwzNi40SDQyVjM3LjhINDAuNnpNNDIsMzYuNEg0My40VjM3LjhINDJ6TTE0LDM3LjhIMTUuNFYzOS4ySDE0ek0xNi44LDM3LjhIMTguMlYzOS4ySDE2Ljh6TTIxLDM3LjhIMjIuNFYzOS4ySDIxek0yMi40LDM3LjhIMjMuOFYzOS4ySDIyLjR6TTI1LjIsMzcuOEgyNi42VjM5LjJIMjUuMnpNMjYuNiwzNy44SDI4VjM5LjJIMjYuNnpNMjgsMzcuOEgyOS40VjM5LjJIMjh6TTI5LjQsMzcuOEgzMC44VjM5LjJIMjkuNHpNMzIuMiwzNy44SDMzLjZWMzkuMkgzMi4yek0zNi40LDM3LjhIMzcuOFYzOS4ySDM2LjR6TTQyLDM3LjhINDMuNFYzOS4ySDQyek00NC44LDM3LjhINDYuMlYzOS4ySDQ0Ljh6TTQ3LjYsMzcuOEg0OVYzOS4ySDQ3LjZ6TTIuOCwzOS4ySDQuMlY0MC42SDIuOHpNNC4yLDM5LjJINS42VjQwLjZINC4yek01LjYsMzkuMkg3VjQwLjZINS42ek03LDM5LjJIOC40VjQwLjZIN3pNOC40LDM5LjJIOS44VjQwLjZIOC40ek05LjgsMzkuMkgxMS4yVjQwLjZIOS44ek0xMS4yLDM5LjJIMTIuNlY0MC42SDExLjJ6TTE2LjgsMzkuMkgxOC4yVjQwLjZIMTYuOHpNMTkuNiwzOS4ySDIxVjQwLjZIMTkuNnpNMjEsMzkuMkgyMi40VjQwLjZIMjF6TTIzLjgsMzkuMkgyNS4yVjQwLjZIMjMuOHpNMjUuMiwzOS4ySDI2LjZWNDAuNkgyNS4yek0yNi42LDM5LjJIMjhWNDAuNkgyNi42ek0zMC44LDM5LjJIMzIuMlY0MC42SDMwLjh6TTMyLjIsMzkuMkgzMy42VjQwLjZIMzIuMnpNMzUsMzkuMkgzNi40VjQwLjZIMzV6TTM2LjQsMzkuMkgzNy44VjQwLjZIMzYuNHpNMzkuMiwzOS4ySDQwLjZWNDAuNkgzOS4yek00MiwzOS4ySDQzLjRWNDAuNkg0MnpNNDQuOCwzOS4ySDQ2LjJWNDAuNkg0NC44ek0yLjgsNDAuNkg0LjJWNDJIMi44ek0xMS4yLDQwLjZIMTIuNlY0MkgxMS4yek0xNCw0MC42SDE1LjRWNDJIMTR6TTE1LjQsNDAuNkgxNi44VjQySDE1LjR6TTE4LjIsNDAuNkgxOS42VjQySDE4LjJ6TTIxLDQwLjZIMjIuNFY0MkgyMXpNMjUuMiw0MC42SDI2LjZWNDJIMjUuMnpNMjYuNiw0MC42SDI4VjQySDI2LjZ6TTI4LDQwLjZIMjkuNFY0MkgyOHpNMjkuNCw0MC42SDMwLjhWNDJIMjkuNHpNMzAuOCw0MC42SDMyLjJWNDJIMzAuOHpNMzIuMiw0MC42SDMzLjZWNDJIMzIuMnpNMzUsNDAuNkgzNi40VjQySDM1ek0zNi40LDQwLjZIMzcuOFY0MkgzNi40ek00Miw0MC42SDQzLjRWNDJINDJ6TTQzLjQsNDAuNkg0NC44VjQySDQzLjR6TTQ0LjgsNDAuNkg0Ni4yVjQySDQ0Ljh6TTQ3LjYsNDAuNkg0OVY0Mkg0Ny42ek0yLjgsNDJINC4yVjQzLjRIMi44ek01LjYsNDJIN1Y0My40SDUuNnpNNyw0Mkg4LjRWNDMuNEg3ek04LjQsNDJIOS44VjQzLjRIOC40ek0xMS4yLDQySDEyLjZWNDMuNEgxMS4yek0xNCw0MkgxNS40VjQzLjRIMTR6TTE1LjQsNDJIMTYuOFY0My40SDE1LjR6TTE2LjgsNDJIMTguMlY0My40SDE2Ljh6TTE4LjIsNDJIMTkuNlY0My40SDE4LjJ6TTIyLjQsNDJIMjMuOFY0My40SDIyLjR6TTIzLjgsNDJIMjUuMlY0My40SDIzLjh6TTI1LjIsNDJIMjYuNlY0My40SDI1LjJ6TTI5LjQsNDJIMzAuOFY0My40SDI5LjR6TTMwLjgsNDJIMzIuMlY0My40SDMwLjh6TTM2LjQsNDJIMzcuOFY0My40SDM2LjR6TTM3LjgsNDJIMzkuMlY0My40SDM3Ljh6TTM5LjIsNDJINDAuNlY0My40SDM5LjJ6TTQwLjYsNDJINDJWNDMuNEg0MC42ek00Miw0Mkg0My40VjQzLjRINDJ6TTQzLjQsNDJINDQuOFY0My40SDQzLjR6TTIuOCw0My40SDQuMlY0NC44SDIuOHpNNS42LDQzLjRIN1Y0NC44SDUuNnpNNyw0My40SDguNFY0NC44SDd6TTguNCw0My40SDkuOFY0NC44SDguNHpNMTEuMiw0My40SDEyLjZWNDQuOEgxMS4yek0xNCw0My40SDE1LjRWNDQuOEgxNHpNMTYuOCw0My40SDE4LjJWNDQuOEgxNi44ek0xOS42LDQzLjRIMjFWNDQuOEgxOS42ek0yMy44LDQzLjRIMjUuMlY0NC44SDIzLjh6TTI2LjYsNDMuNEgyOFY0NC44SDI2LjZ6TTI4LDQzLjRIMjkuNFY0NC44SDI4ek0yOS40LDQzLjRIMzAuOFY0NC44SDI5LjR6TTMzLjYsNDMuNEgzNVY0NC44SDMzLjZ6TTM1LDQzLjRIMzYuNFY0NC44SDM1ek0zNi40LDQzLjRIMzcuOFY0NC44SDM2LjR6TTM3LjgsNDMuNEgzOS4yVjQ0LjhIMzcuOHpNNDIsNDMuNEg0My40VjQ0LjhINDJ6TTQzLjQsNDMuNEg0NC44VjQ0LjhINDMuNHpNNDQuOCw0My40SDQ2LjJWNDQuOEg0NC44ek00Ni4yLDQzLjRINDcuNlY0NC44SDQ2LjJ6TTQ3LjYsNDMuNEg0OVY0NC44SDQ3LjZ6TTIuOCw0NC44SDQuMlY0Ni4ySDIuOHpNNS42LDQ0LjhIN1Y0Ni4ySDUuNnpNNyw0NC44SDguNFY0Ni4ySDd6TTguNCw0NC44SDkuOFY0Ni4ySDguNHpNMTEuMiw0NC44SDEyLjZWNDYuMkgxMS4yek0xNCw0NC44SDE1LjRWNDYuMkgxNHpNMTUuNCw0NC44SDE2LjhWNDYuMkgxNS40ek0xNi44LDQ0LjhIMTguMlY0Ni4ySDE2Ljh6TTIxLDQ0LjhIMjIuNFY0Ni4ySDIxek0yMi40LDQ0LjhIMjMuOFY0Ni4ySDIyLjR6TTIzLjgsNDQuOEgyNS4yVjQ2LjJIMjMuOHpNMjUuMiw0NC44SDI2LjZWNDYuMkgyNS4yek0yNi42LDQ0LjhIMjhWNDYuMkgyNi42ek0zMy42LDQ0LjhIMzVWNDYuMkgzMy42ek0zNi40LDQ0LjhIMzcuOFY0Ni4ySDM2LjR6TTM5LjIsNDQuOEg0MC42VjQ2LjJIMzkuMnpNNDAuNiw0NC44SDQyVjQ2LjJINDAuNnpNNDQuOCw0NC44SDQ2LjJWNDYuMkg0NC44ek0yLjgsNDYuMkg0LjJWNDcuNkgyLjh6TTExLjIsNDYuMkgxMi42VjQ3LjZIMTEuMnpNMTUuNCw0Ni4ySDE2LjhWNDcuNkgxNS40ek0xNi44LDQ2LjJIMTguMlY0Ny42SDE2Ljh6TTE4LjIsNDYuMkgxOS42VjQ3LjZIMTguMnpNMTkuNiw0Ni4ySDIxVjQ3LjZIMTkuNnpNMjEsNDYuMkgyMi40VjQ3LjZIMjF6TTIzLjgsNDYuMkgyNS4yVjQ3LjZIMjMuOHpNMjgsNDYuMkgyOS40VjQ3LjZIMjh6TTI5LjQsNDYuMkgzMC44VjQ3LjZIMjkuNHpNMzIuMiw0Ni4ySDMzLjZWNDcuNkgzMi4yek0zNy44LDQ2LjJIMzkuMlY0Ny42SDM3Ljh6TTQyLDQ2LjJINDMuNFY0Ny42SDQyek00My40LDQ2LjJINDQuOFY0Ny42SDQzLjR6TTQ0LjgsNDYuMkg0Ni4yVjQ3LjZINDQuOHpNMi44LDQ3LjZINC4yVjQ5SDIuOHpNNC4yLDQ3LjZINS42VjQ5SDQuMnpNNS42LDQ3LjZIN1Y0OUg1LjZ6TTcsNDcuNkg4LjRWNDlIN3pNOC40LDQ3LjZIOS44VjQ5SDguNHpNOS44LDQ3LjZIMTEuMlY0OUg5Ljh6TTExLjIsNDcuNkgxMi42VjQ5SDExLjJ6TTE0LDQ3LjZIMTUuNFY0OUgxNHpNMTUuNCw0Ny42SDE2LjhWNDlIMTUuNHpNMTYuOCw0Ny42SDE4LjJWNDlIMTYuOHpNMTkuNiw0Ny42SDIxVjQ5SDE5LjZ6TTIxLDQ3LjZIMjIuNFY0OUgyMXpNMjMuOCw0Ny42SDI1LjJWNDlIMjMuOHpNMjYuNiw0Ny42SDI4VjQ5SDI2LjZ6TTMzLjYsNDcuNkgzNVY0OUgzMy42ek0zNSw0Ny42SDM2LjRWNDlIMzV6TTM2LjQsNDcuNkgzNy44VjQ5SDM2LjR6TTQwLjYsNDcuNkg0MlY0OUg0MC42ek00Ni4yLDQ3LjZINDcuNlY0OUg0Ni4yeiIgaWQ9InFyLXBhdGgiIGZpbGw9IiMwMDAwMDAiIGZpbGwtb3BhY2l0eT0iMSIgZmlsbC1ydWxlPSJub256ZXJvIiBzdHJva2U9Im5vbmUiIC8+PC9zdmc+" alt="Código QR de la página de resultados">'
+    + "<div><b>Seguilo desde tu celular</b><br>Apuntá la cámara al código<br>"
+    + '<span class="eyebrow">' + DIRECCION + "</span></div></div>";
   return h;
 }
 
@@ -776,17 +1021,26 @@ function pintar(){
     return '<button class="tab" role="tab" data-act="tab" data-tab="' + t.id + '" aria-selected="' + (t.id === UI.tab) + '">' + t.lab + "</button>";
   }).join("");
   var v = document.getElementById("vista");
+  /* lo que alguien esté escribiendo no se pierde si entra una novedad del servidor */
+  var campos = v.querySelectorAll("input"), guardados = {}, i;
+  for(i = 0; i < campos.length; i++) if(campos[i].id) guardados[campos[i].id] = campos[i].value;
   if(UI.tab === "fixture") v.innerHTML = vistaFixture(j);
   else if(UI.tab === "tablas") v.innerHTML = vistaTablas(j);
   else if(UI.tab === "panel") v.innerHTML = vistaPanel(j);
   else v.innerHTML = vistaVivo(j);
+  for(i in guardados){
+    var c = document.getElementById(i);
+    if(c && c.tagName === "INPUT") c.value = guardados[i];
+  }
   var p = document.getElementById("proy");
   if(UI.tab === "proy"){ p.className = "proy"; p.innerHTML = vistaProyector(j); }
   else { p.className = ""; p.innerHTML = ""; }
   var chip = document.getElementById("chip-demo");
   if(chip) chip.hidden = !S.demo;
   var sello = document.getElementById("version");
-  if(sello) sello.textContent = "· versión 4";
+  if(sello) sello.textContent = EN_LINEA ? "· en línea" : "· modo local, sin compartir";
+  indicador();
+  aplicarTema();
   guardarUI();
 }
 
@@ -803,21 +1057,47 @@ document.addEventListener("click", function(ev){
     pintar(); return;
   }
   if(act === "salirproy"){ UI.tab = "vivo"; pintar(); return; }
-  if(act === "pin"){
-    var campo = document.getElementById("pin");
-    if(campo && campo.value.trim() === PIN){ UI.pin = true; pintar(); }
-    else if(campo){ campo.value = ""; campo.placeholder = "PIN incorrecto"; campo.focus(); }
+  if(act === "tema"){ rotarTema(); return; }
+  if(act === "entrar"){
+    var correo = document.getElementById("correo"), clave = document.getElementById("clave");
+    if(!correo || !clave || !correo.value || !clave.value){
+      AVISO_PANEL = "Faltan el correo o la contraseña."; pintar(); return;
+    }
+    AVISO_PANEL = "Entrando…"; b.disabled = true; pintar();
+    entrar(correo.value.trim(), clave.value)
+      .then(function(){ AVISO_PANEL = ""; CONEX = "al-dia"; pintar(); vaciarCola(); })
+      .catch(function(e){
+        AVISO_PANEL = (e && e.message === "Invalid login credentials")
+          ? "Correo o contraseña incorrectos." : "No se pudo entrar: " + (e && e.message ? e.message : "revisá la conexión");
+        pintar();
+      });
     return;
   }
-  if(act === "demo"){ cargarDemo(); return; }
+  if(act === "salir"){ guardarSesion(null); AVISO_PANEL = ""; pintar(); return; }
+  if(act === "demo"){
+    if(UI.confirmar !== "demo"){ UI.confirmar = "demo"; b.textContent = "¿Seguro? Lo ven todos"; return; }
+    UI.confirmar = null; cargarDemo(); return;
+  }
   if(act === "reset"){
     if(UI.confirmar !== "reset"){ UI.confirmar = "reset"; b.textContent = "¿Seguro? Borra todo"; return; }
-    UI.confirmar = null; S = estadoVacio(); commit(); return;
+    UI.confirmar = null;
+    S.m = {}; S.demo = false; COLA = [];
+    commit();
+    if(EN_LINEA){
+      AVISO_PANEL = "Poniendo la jornada en cero…"; pintar();
+      api("POST", "/rest/v1/rpc/reiniciar", { j: UI.jor })
+        .then(function(){ AVISO_PANEL = ""; return sincronizar(true); })
+        .catch(function(e){
+          AVISO_PANEL = e && e.auth ? "Hace falta entrar de nuevo para borrar." : "No se pudo borrar en el servidor.";
+          pintar();
+        });
+    }
+    return;
   }
   if(!id) return;
   if(act === "iniciar"){
     cambiar(id, function(m){
-      m.st = "live"; m.per = 1; m.t0 = Date.now();
+      m.st = "live"; m.per = 1; m.t0 = ahora();
       var p = id.split(".");
       if(p[2] === "6"){ var f = finalistas(p[0], p[1], p[3]); if(f.listo) m.eqs = f.eq; }
     });
@@ -828,14 +1108,14 @@ document.addEventListener("click", function(ev){
     cambiar(id, function(m){ sumar(m, id.split(".")[1], lado, n); });
     return;
   }
-  if(act === "periodo"){ cambiar(id, function(m){ m.per = 2; m.t0 = Date.now(); }); return; }
+  if(act === "periodo"){ cambiar(id, function(m){ m.per = 2; m.t0 = ahora(); }); return; }
   if(act === "undo"){ UI.confirmar = null; deshacer(id); return; }
   if(act === "fin"){
     if(UI.confirmar !== id){ UI.confirmar = id; pintar(); return; }
     UI.confirmar = null;
     cambiar(id, function(m){
       if(m.sets && m.sets.length !== undefined && (m.a || m.b) && id.split(".")[1] === "voley"){ m.sets.push([m.a, m.b]); m.a = 0; m.b = 0; }
-      m.st = "fin"; m.fin = Date.now();
+      m.st = "fin"; m.fin = ahora();
     });
     return;
   }
@@ -853,7 +1133,7 @@ document.addEventListener("click", function(ev){
   if(act === "def"){
     var l = +b.getAttribute("data-lado"), k2 = +b.getAttribute("data-n");
     cambiar(id, function(m){
-      if(l === 0) m.dA = Math.max(0, (m.dA || 0) + k2); else m.dB = Math.max(0, (m.dB || 0) + k2);
+      if(l === 0) m.da = Math.max(0, (m.da || 0) + k2); else m.db = Math.max(0, (m.db || 0) + k2);
     });
     return;
   }
@@ -863,13 +1143,14 @@ document.addEventListener("click", function(ev){
     if(i >= 0) lst.splice(i, 1); else lst.push(eq);
     S.sorteo[id] = lst;
     commit();
+    guardarSorteo();
     return;
   }
 });
 document.addEventListener("keydown", function(ev){
   if(ev.key === "Escape" && UI.tab === "proy"){ UI.tab = "vivo"; pintar(); }
-  if(ev.key === "Enter" && ev.target && ev.target.id === "pin"){
-    var btn = document.querySelector('[data-act="pin"]');
+  if(ev.key === "Enter" && ev.target && (ev.target.id === "clave" || ev.target.id === "correo")){
+    var btn = document.querySelector('[data-act="entrar"]');
     if(btn) btn.click();
   }
 });
@@ -888,8 +1169,8 @@ function setsAzar(r){
   return s;
 }
 function cargarDemo(){
-  var r = azar(20260921), j = "cb", c, y, id;
-  S = estadoVacio();
+  var r = azar(20260921), j = UI.jor, c, y, id;
+  S.m = {};
   S.demo = true;
   for(c=0;c<6;c++){
     for(y=0;y<2;y++){
@@ -911,9 +1192,10 @@ function cargarDemo(){
           fin: Date.now() - (2 - c) * 420000 };
     }
   }
-  S.m[mid(j, "basquet", 2, "muj")] = { st:"live", a:8,  b:6,  per:1, sets:[], t0: Date.now() - 145000 };
-  S.m[mid(j, "basquet", 2, "var")] = { st:"live", a:11, b:9,  per:1, sets:[], t0: Date.now() - 152000 };
+  S.m[mid(j, "basquet", 2, "muj")] = { st:"live", a:8,  b:6,  per:1, sets:[], t0: ahora() - 145000 };
+  S.m[mid(j, "basquet", 2, "var")] = { st:"live", a:11, b:9,  per:1, sets:[], t0: ahora() - 152000 };
   UI.confirmar = null;
+  for(id in S.m) if(Object.prototype.hasOwnProperty.call(S.m, id)) encolar(id);
   commit();
 }
 
@@ -938,17 +1220,21 @@ window.addEventListener("hashchange", function(){
 });
 
 try{
-  S = leer();
-  if(S){ pintar(); } else { cargarDemo(); }
+  S = leer() || estadoVacio();   /* lo último que vimos, para que algo se vea ya */
+  pintar();
 }catch(e){
   S = estadoVacio();
   window.onerror(e && e.message ? e.message : String(e), "", 0);
 }
+if(EN_LINEA){
+  sincronizar(true);   /* primera carga completa desde el servidor */
+  vaciarCola();        /* si quedó algo sin subir de antes, va ahora */
+}
 
-var ultimaRotacion = Date.now();
+var ultimaRotacion = Date.now(), ultimaSync = Date.now(), ultimoCompleto = Date.now();
 setInterval(function(){
-  var relojes = document.querySelectorAll("[data-reloj]");
-  for(var i=0;i<relojes.length;i++){
+  var relojes = document.querySelectorAll("[data-reloj]"), i;
+  for(i = 0; i < relojes.length; i++){
     var m = M(relojes[i].getAttribute("data-reloj")), ms = restante(m);
     if(ms === null) continue;
     relojes[i].textContent = ms > 0 ? mmss(ms) : "0:00 · cumplido";
@@ -958,7 +1244,24 @@ setInterval(function(){
     UI.proyIdx = (UI.proyIdx + 1) % DEPORTES.length;
     pintar();
   }
+  if(!EN_LINEA) return;
+  /* El panel y el proyector preguntan seguido; los celulares de los chicos, más
+     espaciado. Con la pestaña en segundo plano, casi nada. */
+  var cada = 1000 * ((UI.tab === "panel" || UI.tab === "proy") ? (INTERVALO.panel || 3) : (INTERVALO.publico || 10));
+  if(document.hidden) cada = Math.max(cada, 30000);
+  if(Date.now() - ultimaSync > cada){
+    ultimaSync = Date.now();
+    var completo = Date.now() - ultimoCompleto > 300000;   /* cada 5 minutos, refresco total */
+    if(completo) ultimoCompleto = Date.now();
+    sincronizar(completo);
+  }
+  vaciarCola();
 }, 1000);
+
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden && EN_LINEA){ ultimaSync = 0; sincronizar(); vaciarCola(); }
+});
+window.addEventListener("online", function(){ if(EN_LINEA){ sincronizar(); vaciarCola(); } });
 </script>
 
 
