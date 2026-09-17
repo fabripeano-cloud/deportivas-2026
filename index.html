@@ -343,7 +343,7 @@ var REV = 0;              /* último número de cambio que vimos del servidor */
 var COLA = [];            /* partidos modificados que todavía no se subieron */
 var SKEW = 0;             /* diferencia entre el reloj del servidor y el de este aparato */
 var CONEX = EN_LINEA ? "esperando" : "local";
-var INTERVALO = { panel:3, publico:10 };
+var INTERVALO = { panel:2, publico:4 };
 
 function ahora(){ return Date.now() + SKEW; }
 function estadoVacio(){ return { v:2, m:{}, sorteo:{}, demo:false, t:Date.now() }; }
@@ -1255,7 +1255,7 @@ setInterval(function(){
   if(!EN_LINEA) return;
   /* El panel y el proyector preguntan seguido; los celulares de los chicos, más
      espaciado. Con la pestaña en segundo plano, casi nada. */
-  var base = (UI.tab === "panel" || UI.tab === "proy") ? (INTERVALO.panel || 3) : (INTERVALO.publico || 10);
+  var base = (UI.tab === "panel" || UI.tab === "proy") ? (INTERVALO.panel || 2) : (INTERVALO.publico || 4);
   var cada = 1000 * (base + ESPACIADO);
   if(document.hidden) cada = Math.max(cada, 30000);
   if(Date.now() - ultimaSync > cada){
