@@ -1484,10 +1484,22 @@ document.addEventListener("click", function(ev){
     commit();
     if(EN_LINEA){
       AVISO_PANEL = "Poniendo la jornada en cero…"; pintar();
-      api("POST", "/rest/v1/rpc/reiniciar", { j: UI.jor })
+      /* Los sorteos de desempate y la pantalla de cierre también son de la jornada:
+         si quedan de una prueba, el día real la app podría dar por hecho un sorteo
+         que nadie hizo. */
+      var limpio = {}, kk;
+      for(kk in S.sorteo){ if(kk.indexOf(jornada + ".") !== 0) limpio[kk] = S.sorteo[kk]; }
+      S.sorteo = limpio;
+      api("POST", "/rest/v1/rpc/reiniciar", { j: jornada })
+        .then(function(){ return api("PATCH", "/rest/v1/ajustes?clave=eq.sorteo&select=clave", { valor:limpio }); })
+        .then(function(){
+          if(PANTALLA.cierre !== jornada) return null;
+          PANTALLA = { cierre:"", texto: PANTALLA.texto || "" };
+          return api("PATCH", "/rest/v1/ajustes?clave=eq.aviso&select=clave", { valor:PANTALLA });
+        })
         .then(function(){ AVISO_PANEL = ""; return sincronizar(true); })
         .catch(function(e){
-          AVISO_PANEL = e && e.auth ? "Hace falta entrar de nuevo para borrar." : "No se pudo borrar en el servidor.";
+          AVISO_PANEL = e && e.auth ? "Hace falta entrar de nuevo para borrar." : "No se pudo borrar todo en el servidor.";
           pintar();
         });
     }
