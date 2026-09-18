@@ -369,7 +369,6 @@ var DEPORTES = [
 /* Rondas del sorteo: P-1 = 1-2 · 3-4 · 5-6 · P-2 = 2-3 · 1-6 · 4-5 (posiciones, base 0) */
 var CRUCES = [[0,1],[2,3],[4,5],[1,2],[0,5],[3,4]];
 var CATS = [{id:"muj",lab:"Mujeres"},{id:"var",lab:"Varones"}];
-var MINUTOS = 5;            /* duración de cada tiempo en básquet y fútbol sala */
 
 function dep(id){ for(var i=0;i<DEPORTES.length;i++) if(DEPORTES[i].id===id) return DEPORTES[i]; }
 function jor(id){ for(var i=0;i<JORNADAS.length;i++) if(JORNADAS[i].id===id) return JORNADAS[i]; }
@@ -533,8 +532,6 @@ function api(metodo, ruta, cuerpo, reintento){
 /* ---------- subida de cambios, con cola para cuando no hay señal ---------- */
 var subiendo = false;
 function encolar(id){
-  var hayFestejo = !!cartelCampeon(UI.jor);
-  if(hayFestejo !== festejoVisible){ festejoVisible = hayFestejo; pintar(); }
   if(!EN_LINEA) return;
   if(COLA.indexOf(id) < 0) COLA.push(id);
   CONEX = "guardando";
@@ -637,15 +634,6 @@ function sumar(m, d, lado, n){
     var t = tanteo(m, d);
     if(t.a === 2 || t.b === 2){ m.st = "fin"; m.fin = ahora(); }
   }
-}
-function restante(m){
-  if(m.st !== "live" || !m.t0) return null;
-  return MINUTOS*60000 - (ahora() - m.t0);
-}
-function mmss(ms){
-  if(ms < 0) ms = 0;
-  var s = Math.round(ms/1000);
-  return Math.floor(s/60) + ":" + (s%60 < 10 ? "0" : "") + (s%60);
 }
 
 
@@ -805,10 +793,9 @@ var TABS = [
 
 /* ---------- piezas ---------- */
 function chipEstado(id, m, d){
-  if(m.st === "live"){
-    var reloj = d.sets ? "" : ' <span class="reloj" data-reloj="' + id + '">' + mmss(restante(m)) + "</span>";
-    return '<span class="chip vivo"><span class="punto"></span>En vivo</span>' + reloj;
-  }
+  /* El tiempo de juego lo lleva el árbitro, no la pantalla: un reloj acá, que
+     puede no coincidir con la cancha, solo genera discusiones. */
+  if(m.st === "live") return '<span class="chip vivo"><span class="punto"></span>En vivo</span>';
   if(m.st === "fin") return '<span class="chip fin">Terminado</span>';
   return '<span class="chip">Por jugar</span>';
 }
@@ -1420,12 +1407,9 @@ if(EN_LINEA){
 
 var ultimaSync = Date.now(), ultimoCompleto = Date.now(), festejoVisible = false;
 setInterval(function(){
-  var relojes = document.querySelectorAll("[data-reloj]"), i;
-  for(i = 0; i < relojes.length; i++){
-    var m = M(relojes[i].getAttribute("data-reloj")), ms = restante(m);
-    if(ms === null) continue;
-    relojes[i].textContent = ms > 0 ? mmss(ms) : "0:00 · cumplido";
-  }
+  /* el cartel del campeón dura dos minutos y se retira solo */
+  var hayFestejo = !!cartelCampeon(UI.jor);
+  if(hayFestejo !== festejoVisible){ festejoVisible = hayFestejo; pintar(); }
   if(!EN_LINEA) return;
   /* El panel y el proyector preguntan seguido; los celulares de los chicos, más
      espaciado. Con la pestaña en segundo plano, casi nada. */
