@@ -219,6 +219,8 @@ table.pos tr:last-child td{border-bottom:0}
 .sumar button{flex:1 1 44px;min-height:52px;background:var(--surface);border:1px solid var(--line);border-radius:8px;
   cursor:pointer;font-family:var(--display);font-size:1.3rem;font-weight:800}
 .sumar button:hover{border-color:var(--accent)}
+.sumar button.menos{flex:1 1 100%;min-height:36px;font-size:1rem;background:var(--surface2);color:var(--muted)}
+.sumar button.menos:hover{color:var(--ink)}
 .ctrl{display:grid;gap:10px;grid-template-columns:1fr 1fr;align-items:start;margin-top:6px}
 .equipo{min-width:0;background:var(--surface2);border:1px solid var(--line);border-radius:9px;padding:8px;text-align:center}
 .equipo .quien{font-family:var(--display);font-weight:700;font-size:1.05rem;letter-spacing:.02em}
@@ -669,6 +671,19 @@ function sumar(m, d, lado, n){
 }
 
 
+function restar(m, d, lado){
+  if(m.st !== "live") return;
+  if(lado === 0 && m.a > 0){ m.a--; return; }
+  if(lado === 1 && m.b > 0){ m.b--; return; }
+  /* en voley, si el set esta 0-0 y ya hubo sets, se vuelve al anterior:
+     queda como estaba un punto antes de cerrarse, listo para corregir */
+  if(dep(d).sets && m.a === 0 && m.b === 0 && m.sets.length){
+    var s2 = m.sets.pop();
+    m.a = s2[0] - (s2[0] > s2[1] ? 1 : 0);
+    m.b = s2[1] - (s2[1] > s2[0] ? 1 : 0);
+  }
+}
+
 /* ---------- tabla de posiciones (artículos 3 y 4 del reglamento) ---------- */
 function tabla(j, d, cat){
   var pos = jor(j).pos[d], filas = {}, orden = [];
@@ -922,6 +937,24 @@ var COPA = '<svg class="copa" viewBox="0 0 24 24" fill="currentColor" aria-hidde
   + '<path d="M7 3h10v6a5 5 0 0 1-10 0V3z"/>'
   + '<path d="M7 4H5a3 3 0 0 0 0 6h2V8H6a1 1 0 0 1 0-2h1V4zm10 0h2a3 3 0 0 1 0 6h-2V8h1a1 1 0 0 0 0-2h-1V4z"/>'
   + '<path d="M11 14h2v4h-2z"/><path d="M8 18h8v2H8z"/></svg>';
+/* Figuras de cada deporte, dibujadas para que se distingan de un vistazo:
+   la pelota arriba es voley, abajo picando es basquet, al pie es futbol. */
+var FIG = {
+  voley: '<circle cx="16.8" cy="4.6" r="2.7"/><path d="M14.4 3.4c1.6.5 2.7 1.9 2.9 3.6M18.9 2.9c-.7 1.4-.6 3 .3 4.3"/>'
+       + '<circle cx="8.6" cy="8.6" r="1.9" fill="currentColor" stroke="none"/>'
+       + '<path d="M8.8 10.6 10 15.4M9.4 11.1 14 6.4M8.2 11.2 4.6 7.9M10 15.4 7.1 18.9M10 15.4 13.1 18.3"/>',
+  basquet: '<circle cx="16.4" cy="15.2" r="2.5"/><path d="M13.9 15.2h5M16.4 12.7v5"/>'
+         + '<path d="M13.7 19.8c1.7 1.1 3.7 1.1 5.4 0"/>'
+         + '<circle cx="10.3" cy="6.4" r="1.9" fill="currentColor" stroke="none"/>'
+         + '<path d="M10.4 8.4 11 13.6M10.9 9.3 14.4 11.6M10.1 9.4 6.5 11.3M11 13.6 8.3 18M11 13.6 13.8 17.6"/>',
+  futsal: '<circle cx="18.7" cy="17.9" r="2.4"/><path d="M17 16.2l1.7 1.2 1.7-1.2M18.7 19l-1.3-1.5M18.7 19l1.3-1.5"/>'
+        + '<circle cx="8.4" cy="6.2" r="1.9" fill="currentColor" stroke="none"/>'
+        + '<path d="M8.5 8.2 9.4 13M9 9 12.5 7.6M8.3 9.2 5.3 11.1M9.4 13 8 18.8M9.4 13 13.2 15.1 15.9 16.7"/>'
+};
+function figura(dep, clase){
+  return '<svg class="fig' + (clase ? " " + clase : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (FIG[dep] || "") + "</svg>";
+}
 var FESTEJO = 120000;   /* dos minutos de cartel grande, medidos con la hora del servidor */
 
 function campeon(j, dep, cat){
@@ -1146,7 +1179,8 @@ function controlCancha(j, d, c, cat){
     h += '<div class="ctrl">' + [0,1].map(function(lado){
       var botones = d.pasos.map(function(n){
         return '<button data-act="sumar" data-id="' + id + '" data-lado="' + lado + '" data-n="' + n + '">+' + n + "</button>";
-      }).join("");
+      }).join("")
+        + '<button class="menos" data-act="restar" data-id="' + id + '" data-lado="' + lado + '">−1</button>';
       return '<div class="equipo"><div class="quien">' + e[lado] + "</div>"
         + '<b class="num">' + (lado === 0 ? m.a : m.b) + "</b>"
         + '<div class="sumar">' + botones + "</div></div>";
@@ -1154,7 +1188,9 @@ function controlCancha(j, d, c, cat){
     h += '<div class="btn-fila" style="margin-top:8px">' + chipEstado(id, m, d);
     if(d.sets) h += '<span class="chip">Set ' + (m.sets.length + 1) + " · sets " + t.a + "-" + t.b + "</span>";
     else if(m.per === 1) h += '<button class="btn sec" data-act="periodo" data-id="' + id + '">Pasar al 2.° tiempo</button>';
-    h += '<button class="btn sec" data-act="undo" data-id="' + id + '">Deshacer</button>';
+    h += '<button class="btn sec" data-act="undo" data-id="' + id + '"'
+      + (m.h && m.h.length ? "" : " disabled title=\"Solo se puede deshacer lo que se cargó en este aparato\"")
+      + ">Deshacer</button>";
     h += UI.confirmar === id
       ? '<button class="btn peligro" data-act="fin" data-id="' + id + '">Confirmar el final</button>'
       : '<button class="btn sec" data-act="fin" data-id="' + id + '">Finalizar</button>';
@@ -1162,7 +1198,9 @@ function controlCancha(j, d, c, cat){
   } else {
     h += '<div class="btn-fila" style="margin-top:4px"><span class="chip fin">Terminado ' + t.a + "-" + t.b + "</span>"
       + '<button class="btn sec" data-act="reabrir" data-id="' + id + '">Corregir</button>'
-      + '<button class="btn sec" data-act="undo" data-id="' + id + '">Deshacer</button></div>';
+      + '<button class="btn sec" data-act="undo" data-id="' + id + '"'
+      + (m.h && m.h.length ? "" : " disabled title=\"Solo se puede deshacer lo que se cargó en este aparato\"")
+      + ">Deshacer</button></div>";
     if(c === 6 && d.defin && t.a === t.b){
       h += '<p class="meta" style="margin-top:6px">Final empatada: se define por ' + d.defin + " (artículo 6).</p>"
         + '<div class="ctrl">' + [0,1].map(function(lado){
@@ -1421,6 +1459,11 @@ document.addEventListener("click", function(ev){
     });
     return;
   }
+  if(act === "restar"){
+    var lr = +b.getAttribute("data-lado");
+    cambiar(id, function(m){ restar(m, id.split(".")[1], lr); });
+    return;
+  }
   if(act === "periodo"){ cambiar(id, function(m){ m.per = 2; m.t0 = ahora(); }); return; }
   if(act === "undo"){ UI.confirmar = null; deshacer(id); return; }
   if(act === "fin"){
@@ -1435,10 +1478,13 @@ document.addEventListener("click", function(ev){
   if(act === "reabrir"){
     cambiar(id, function(m){
       m.st = "live"; m.fin = null;
-      /* en vóley vuelve el último set al marcador, para poder corregirlo */
+      /* En vóley vuelve el último set al marcador, pero un punto antes de cerrarse:
+         si volviera como 10-0 el siguiente punto lo cerraría de nuevo al instante
+         y no habría manera de corregir nada. */
       if(dep(id.split(".")[1]).sets && m.sets.length){
         var s = m.sets.pop();
-        m.a = s[0]; m.b = s[1];
+        m.a = s[0] - (s[0] > s[1] ? 1 : 0);
+        m.b = s[1] - (s[1] > s[0] ? 1 : 0);
       }
     });
     return;
