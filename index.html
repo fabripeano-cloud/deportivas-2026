@@ -180,6 +180,15 @@ button{font:inherit;color:inherit}
 .podios{display:grid;gap:12px;grid-template-columns:repeat(3,1fr)}
 .podio{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 10px;
   box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:1px}
+.iconos{display:flex;align-items:center;gap:9px;margin-bottom:4px}
+.fig{width:38px;height:38px;color:var(--accent);flex:none}
+.campeon .iconos{gap:12px;margin:0}
+.campeon .fig{width:46px;height:46px}
+.campeones .uno{display:inline-flex;align-items:center;gap:6px}
+.campeones .fig{width:22px;height:22px}
+.proy .podio .fig{width:60px;height:60px}
+.proy .campeon .fig{width:66px;height:66px}
+.proy .campeones .fig{width:28px;height:28px}
 .podio .copa{width:38px;height:38px;color:var(--accent);margin-bottom:4px}
 .podio .dep{font-family:var(--display);font-size:1.05rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .podio .cat{font-size:.72rem;letter-spacing:.1em}
@@ -498,7 +507,7 @@ function fila(m){
            fin: m.fin ? new Date(m.fin).toISOString() : null };
 }
 function deFila(r){
-  return { st:r.st, a:r.a, b:r.b, per:r.per,
+  return { st:r.st, a:r.a, b:r.b, per:r.per, rev:r.rev,
            t0: r.t0 ? Date.parse(r.t0) : null,
            sets: r.sets || [],
            da: r.da, db: r.db, eqs: r.eqs || null,
@@ -534,7 +543,10 @@ function refrescar(){
     method:"POST", headers:{ apikey:SB.key, "Content-Type":"application/json" },
     body: JSON.stringify({ refresh_token: SESION.refresh_token })
   }).then(function(r){
-    if(!r.ok){ guardarSesion(null); throw new Error("sesión vencida"); }
+    if(!r.ok){
+      if(r.status >= 400 && r.status < 500) guardarSesion(null);   /* credencial rechazada */
+      var e = new Error("sesión vencida"); e.auth = true; throw e;
+    }
     return r.json().then(function(d){ guardarSesion(d); return d; });
   });
 }
@@ -544,10 +556,17 @@ function api(metodo, ruta, cuerpo, reintento){
   var cab = { apikey:SB.key, "Content-Type":"application/json" };
   cab.Authorization = "Bearer " + ((SESION && SESION.access_token) ? SESION.access_token : SB.key);
   if(metodo !== "GET") cab.Prefer = "return=representation";
+  var corte = null, aborto = null;
+  try{
+    aborto = new AbortController();
+    corte = setTimeout(function(){ try{ aborto.abort(); }catch(e){} }, 12000);
+  }catch(e){ aborto = null; }
   return fetch(SB.url + ruta, {
     method:metodo, headers:cab, cache:"no-store",
+    signal: aborto ? aborto.signal : undefined,
     body: cuerpo ? JSON.stringify(cuerpo) : undefined
   }).then(function(r){
+    if(corte) clearTimeout(corte);
     var d = r.headers.get("Date");
     if(d){ var t = Date.parse(d); if(t) SKEW = t - Date.now(); }
     if((r.status === 401 || r.status === 403) && !reintento && SESION && SESION.refresh_token){
@@ -559,6 +578,9 @@ function api(metodo, ruta, cuerpo, reintento){
     if(!r.ok) throw new Error("HTTP " + r.status);
     if(r.status === 204) return null;
     return r.json();
+  }, function(e){
+    if(corte) clearTimeout(corte);
+    throw e;
   });
 }
 
@@ -574,31 +596,41 @@ function vaciarCola(){
   if(!EN_LINEA || subiendo || !COLA.length) return;
   subiendo = true;
   var id = COLA[0];
-  api("PATCH", "/rest/v1/partidos?id=eq." + encodeURIComponent(id) + "&select=id", fila(M(id)))
+  /* Lo que se manda queda anotado: si el docente toca otro punto mientras el
+     envio viaja, al volver el acuse la cola NO se vacia, porque el estado local
+     ya es otro. Sin esto el servidor quedaba un punto atras y la siguiente
+     lectura devolvia el marcador para atras, con el cartel diciendo "Al dia". */
+  var enviado = JSON.stringify(fila(M(id)));
+  api("PATCH", "/rest/v1/partidos?id=eq." + encodeURIComponent(id) + "&select=id", JSON.parse(enviado))
     .then(function(r){
       /* si los permisos rechazan el cambio, la respuesta viene vacia: eso es un
          error, no un exito. Sin esto el docente creeria que quedo guardado. */
       if(!r || !r.length){ var e = new Error("sin permiso"); e.auth = true; throw e; }
       subiendo = false;
-      if(COLA[0] === id) COLA.shift();
+      if(COLA[0] === id && JSON.stringify(fila(M(id))) === enviado) COLA.shift();
       guardar();
-      if(COLA.length) vaciarCola();
+      if(COLA.length){ CONEX = "guardando"; indicador(); vaciarCola(); }
       else { CONEX = "al-dia"; indicador(); }
     })
     .catch(function(e){
       subiendo = false;
       CONEX = e && e.auth ? "sin-sesion" : "sin-senal";
       indicador();
+      /* reintento espaciado: un envio que falla no puede quedar parado para siempre */
+      if(!e || !e.auth) setTimeout(vaciarCola, 4000);
     });
 }
 
 /* ---------- traer novedades ---------- */
 var ESPACIADO = 0;   /* segundos extra cuando el servidor viene lento */
+var leyendo = false, ULTIMA_OK = 0;
 function sincronizar(completo){
-  if(!EN_LINEA) return Promise.resolve();
+  if(!EN_LINEA || leyendo) return Promise.resolve();   /* una sola lectura a la vez */
+  leyendo = true;
   var t0 = Date.now();
   return api("GET", "/rest/v1/rpc/sync?desde=" + (completo ? 0 : REV))
     .then(function(d){
+      leyendo = false;
       var tardo = Date.now() - t0;
       ESPACIADO = tardo > 1500 ? Math.min(20, ESPACIADO + 2) : Math.max(0, ESPACIADO - 1);
       if(!d) return;
@@ -609,6 +641,7 @@ function sincronizar(completo){
         var r = lista[i];
         if(COLA.indexOf(r.id) >= 0) continue;   /* hay algo mío sin subir: no lo piso */
         var nuevo = deFila(r), viejo = S.m[r.id];
+        if(viejo && (viejo.rev || 0) > (nuevo.rev || 0)) continue;   /* respuesta vieja */
         if(viejo && viejo.h) nuevo.h = viejo.h;
         S.m[r.id] = nuevo;
         cambio = true;
@@ -619,10 +652,12 @@ function sincronizar(completo){
         if(d.ajustes.aviso){ PANTALLA = d.ajustes.aviso; cambio = true; }
       }
       if(d.rev != null && d.rev > REV) REV = d.rev;
+      ULTIMA_OK = Date.now();
       CONEX = COLA.length ? "guardando" : "al-dia";
       if(cambio){ guardar(); pintar(); } else { guardar(); indicador(); }
     })
     .catch(function(e){
+      leyendo = false;
       ESPACIADO = Math.min(30, ESPACIADO + 5);
       CONEX = e && e.auth ? "sin-sesion" : "sin-senal";
       indicador();
@@ -640,7 +675,8 @@ function tanteo(m, d){
   var sa=0, sb=0, pa=0, pb=0;
   for(var i=0;i<m.sets.length;i++){
     pa += m.sets[i][0]; pb += m.sets[i][1];
-    if(m.sets[i][0] > m.sets[i][1]) sa++; else sb++;
+    if(m.sets[i][0] > m.sets[i][1]) sa++;
+    else if(m.sets[i][1] > m.sets[i][0]) sb++;   /* un set empatado no es de nadie */
   }
   return { a:sa, b:sb, sa:pa + m.a, sb:pb + m.b };
 }
@@ -740,7 +776,12 @@ function general(j){
       for(var c=0;c<7;c++){
         var m = S.m[mid(j,d,c,cat)];
         if(!m || m.st !== "fin") continue;
-        var e = c === 6 ? (finalistas(j,d,cat).eq || null) : equipos(j,d,c);
+        /* En la final valen los equipos congelados al empezarla: recalcularlos hacía
+           que, al corregir un clasificatorio, la general le diera la final a otro
+           curso mientras el cartel de campeón seguía diciendo el correcto. */
+        var e;
+        if(c === 6){ e = nombres(j, d, 6, cat); if(!e || e[0] === "1.°") e = null; }
+        else { e = equipos(j, d, c); }
         if(!e || !filas[e[0]] || !filas[e[1]]) continue;
         var A = filas[e[0]], B = filas[e[1]], g = ganador(m, d);
         A.pj++; B.pj++;
@@ -786,7 +827,7 @@ function jornadaDeHoy(){
   var h = new Date();   /* el lunes 21 juega el Ciclo Básico; el martes 22, el Orientado */
   return (h.getFullYear() === 2026 && h.getMonth() === 8 && h.getDate() >= 22) ? "co" : "cb";
 }
-var UI = { jor:jornadaDeHoy(), tab:"vivo", abierto:null, confirmar:null, proyIdx:0 };
+var UI = { jor:jornadaDeHoy(), tab:"vivo", abierto:null, confirmar:null, proyIdx:0, def:{} };
 try{
   var g = sessionStorage.getItem("deportivas2026.ui");
   if(g){
@@ -795,6 +836,7 @@ try{
   }
 }catch(e){}
 function guardarUI(){ try{ sessionStorage.setItem("deportivas2026.ui", JSON.stringify(UI)); }catch(e){} }
+if(!UI.def) UI.def = {};
 
 /* ---------- tema: automático, claro u oscuro, a elección de cada uno ---------- */
 var TEMAS = [
@@ -937,23 +979,17 @@ var COPA = '<svg class="copa" viewBox="0 0 24 24" fill="currentColor" aria-hidde
   + '<path d="M7 3h10v6a5 5 0 0 1-10 0V3z"/>'
   + '<path d="M7 4H5a3 3 0 0 0 0 6h2V8H6a1 1 0 0 1 0-2h1V4zm10 0h2a3 3 0 0 1 0 6h-2V8h1a1 1 0 0 0 0-2h-1V4z"/>'
   + '<path d="M11 14h2v4h-2z"/><path d="M8 18h8v2H8z"/></svg>';
-/* Figuras de cada deporte, dibujadas para que se distingan de un vistazo:
-   la pelota arriba es voley, abajo picando es basquet, al pie es futbol. */
+/* Pelota de cada deporte: iconos de Material Symbols (Google), licencia Apache 2.0.
+   Dibujados por diseñadores y del mismo estilo macizo que la copa. Probé primero
+   con figuras de jugadores hechas a mano y a tamaño chico quedaban manchas. */
 var FIG = {
-  voley: '<circle cx="16.8" cy="4.6" r="2.7"/><path d="M14.4 3.4c1.6.5 2.7 1.9 2.9 3.6M18.9 2.9c-.7 1.4-.6 3 .3 4.3"/>'
-       + '<circle cx="8.6" cy="8.6" r="1.9" fill="currentColor" stroke="none"/>'
-       + '<path d="M8.8 10.6 10 15.4M9.4 11.1 14 6.4M8.2 11.2 4.6 7.9M10 15.4 7.1 18.9M10 15.4 13.1 18.3"/>',
-  basquet: '<circle cx="16.4" cy="15.2" r="2.5"/><path d="M13.9 15.2h5M16.4 12.7v5"/>'
-         + '<path d="M13.7 19.8c1.7 1.1 3.7 1.1 5.4 0"/>'
-         + '<circle cx="10.3" cy="6.4" r="1.9" fill="currentColor" stroke="none"/>'
-         + '<path d="M10.4 8.4 11 13.6M10.9 9.3 14.4 11.6M10.1 9.4 6.5 11.3M11 13.6 8.3 18M11 13.6 13.8 17.6"/>',
-  futsal: '<circle cx="18.7" cy="17.9" r="2.4"/><path d="M17 16.2l1.7 1.2 1.7-1.2M18.7 19l-1.3-1.5M18.7 19l1.3-1.5"/>'
-        + '<circle cx="8.4" cy="6.2" r="1.9" fill="currentColor" stroke="none"/>'
-        + '<path d="M8.5 8.2 9.4 13M9 9 12.5 7.6M8.3 9.2 5.3 11.1M9.4 13 8 18.8M9.4 13 13.2 15.1 15.9 16.7"/>'
+  voley: '<path d="M782-582q-31-87-101-145.5T520-798v64l262 152ZM320-434l120-70v-294q-32 3-62 14.5T320-756v322Zm-134 78 54-32v-302q-39 44-59.5 98T160-480q0 32 6.5 63.5T186-356Zm134 152 280-160-120-70-254 148q20 25 43 46t51 36Zm160 44q75 0 142-34t112-94l-54-30-264 152q16 3 32 4.5t32 1.5Zm294-196q13-29 19.5-60.5T800-480L520-642v138l254 148ZM480-480Zm0 400q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/>',
+  basquet: '<path d="M162-520h114q-6-38-23-71t-43-59q-18 29-30.5 61.5T162-520Zm522 0h114q-5-36-17.5-68.5T750-650q-26 26-43 59t-23 71ZM210-310q26-26 43-59t23-71H162q5 36 17.5 68.5T210-310Zm540 0q18-29 30.5-61.5T798-440H684q6 38 23 71t43 59ZM358-520h82v-278q-53 8-98.5 29.5T260-712q39 38 64.5 86.5T358-520Zm162 0h82q8-57 33.5-105.5T700-712q-36-35-81.5-56.5T520-798v278Zm-80 358v-278h-82q-8 57-33.5 105.5T260-248q36 35 81.5 56.5T440-162Zm80 0q53-8 98.5-29.5T700-248q-39-38-64.5-86.5T602-440h-82v278Zm-40-318Zm0 400q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/>',
+  futsal: '<path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm200-500 54-18 16-54q-32-48-77-82.5T574-786l-54 38v56l160 112Zm-400 0 160-112v-56l-54-38q-54 17-99 51.5T210-652l16 54 54 18Zm-42 308 46-4 30-54-58-174-56-20-40 30q0 65 18 118.5T238-272Zm293 108q25-4 49-12l28-60-26-44H378l-26 44 28 60q24 8 49 12t51 4q26 0 51-4ZM390-360h180l56-160-146-102-144 102 54 160Zm332 88q42-50 60-103.5T800-494l-40-28-56 18-58 174 30 54 46 4Z"/>'
 };
 function figura(dep, clase){
-  return '<svg class="fig' + (clase ? " " + clase : "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-    + ' stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (FIG[dep] || "") + "</svg>";
+  return '<svg class="fig' + (clase ? " " + clase : "") + '" viewBox="0 -960 960 960"'
+    + ' fill="currentColor" aria-hidden="true">' + (FIG[dep] || "") + "</svg>";
 }
 var FESTEJO = 120000;   /* dos minutos de cartel grande, medidos con la hora del servidor */
 
@@ -981,6 +1017,7 @@ function torneoTerminado(j){
     for(y = 0; y < CATS.length; y++){
       m = S.m[mid(j, DEPORTES[x].id, 6, CATS[y].id)];
       if(!m || m.st !== "fin") return false;
+      if(!campeon(j, DEPORTES[x].id, CATS[y].id)) return false;   /* final sin resolver */
     }
   }
   return true;
@@ -1000,7 +1037,8 @@ function vistaCierre(j){
       for(i = 0; i < lista.length; i++){
         if(lista[i].d.id === DEPORTES[x].id && lista[i].cat.id === CATS[y].id) c = lista[i];
       }
-      tarjetas += '<div class="podio' + (c ? "" : " sin") + '">' + COPA
+      tarjetas += '<div class="podio' + (c ? "" : " sin") + '">'
+        + '<div class="iconos">' + figura(DEPORTES[x].id) + COPA + "</div>"
         + '<span class="dep">' + DEPORTES[x].nombre + "</span>"
         + '<span class="cat">' + CATS[y].lab + "</span>"
         + "<b>" + (c ? c.eq : "—") + "</b></div>";
@@ -1025,7 +1063,8 @@ function cartelCampeon(j, marcar){
   for(i = 0; i < recientes.length; i++){
     c = recientes[i];
     clave = c.d.id + "." + c.cat.id + "." + c.eq;
-    html += '<div class="campeon' + (FESTEJADOS[clave] ? "" : " nuevo") + '">' + COPA
+    html += '<div class="campeon' + (FESTEJADOS[clave] ? "" : " nuevo") + '">'
+      + '<div class="iconos">' + figura(c.d.id) + COPA + "</div>"
       + "<div><b>" + c.eq + "</b><span>"
       + (c.cat.id === "muj" ? "Campeonas" : "Campeones") + " de " + c.d.nombre.toLowerCase()
       + " · " + jor(j).ciclo + "</span></div></div>";
@@ -1039,8 +1078,8 @@ function franjaCampeones(j){
   if(!lista.length) return "";
   return '<div class="campeones">' + COPA + '<span class="eyebrow">Campeones</span>'
     + lista.map(function(x){
-        return '<span class="uno"><i>' + x.d.nombre + " " + (x.cat.id === "muj" ? "mujeres" : "varones")
-          + "</i> " + x.eq + "</span>";
+        return '<span class="uno">' + figura(x.d.id) + "<i>" + x.d.nombre + " "
+          + (x.cat.id === "muj" ? "mujeres" : "varones") + "</i> " + x.eq + "</span>";
       }).join("")
     + "</div>";
 }
@@ -1110,8 +1149,12 @@ function vistaFixture(j){
 /* ---------- vista: tablas ---------- */
 function tablaHTML(j, d, cat){
   var t = tabla(j, d.id, cat.id), f = finalistas(j, d.id, cat.id), u = d.unidad === "goles" ? "goles" : "puntos";
+  /* Si los finalistas ya están definidos —incluido el sorteo— se resaltan ellos.
+     Mientras el sorteo está pendiente no se resalta a nadie, porque el orden
+     alfabético de la igualdad no dice nada. */
+  var pasan = f.listo ? f.eq : (f.sorteo ? [] : [t[0].eq, t[1].eq]);
   var filas = t.map(function(r, i){
-    return '<tr class="' + (i < 2 ? "clasifica" : "") + '">'
+    return '<tr class="' + (pasan.indexOf(r.eq) >= 0 ? "clasifica" : "") + '">'
       + '<td class="pos">' + (i+1) + "</td>"
       + '<td class="eqn">' + r.eq + "</td>"
       + "<td>" + r.pj + "</td><td>" + r.pg + "</td><td>" + r.pe + "</td><td>" + r.pp + "</td>"
@@ -1120,7 +1163,7 @@ function tablaHTML(j, d, cat){
   }).join("");
   var pie;
   if(f.sorteo) pie = "Empate total por el 2.° puesto entre " + f.grupo.join(" y ") + ": se define por sorteo (artículo 4). Lo cargan los docentes desde el panel.";
-  else if(f.listo) pie = "Final: " + f.eq[0] + " vs. " + f.eq[1] + (f.porSorteo ? " (el segundo salió por sorteo)." : ".");
+  else if(f.listo) pie = "Final: " + f.eq[0] + " vs. " + f.eq[1] + (f.porSorteo ? " (el orden lo definió el sorteo)." : ".");
   else pie = "Clasifican los dos primeros. Desempate: diferencia de " + u + ", después " + u + " a favor y, si sigue, sorteo.";
   return '<div class="caja"><h3>' + d.nombre + " · " + cat.lab + "</h3>"
     + '<div class="scroll"><table class="pos">'
@@ -1202,13 +1245,24 @@ function controlCancha(j, d, c, cat){
       + (m.h && m.h.length ? "" : " disabled title=\"Solo se puede deshacer lo que se cargó en este aparato\"")
       + ">Deshacer</button></div>";
     if(c === 6 && d.defin && t.a === t.b){
-      h += '<p class="meta" style="margin-top:6px">Final empatada: se define por ' + d.defin + " (artículo 6).</p>"
+      /* La tanda se carga en borrador y recién al confirmar hay campeón: si no,
+         un 2-1 con tiros pendientes ya anunciaba campeón en toda la escuela. */
+      var confirmada = m.da != null && m.db != null;
+      var bor = UI.def[id] || { a: confirmada ? m.da : 0, b: confirmada ? m.db : 0 };
+      h += '<p class="meta" style="margin-top:6px">Final empatada: se define por ' + d.defin + " (artículo 6)."
+        + (confirmada && !UI.def[id] ? " <b>Cargada: " + m.da + "-" + m.db + "</b>" : " <b>Sin confirmar</b>") + "</p>"
         + '<div class="ctrl">' + [0,1].map(function(lado){
-            var v = lado === 0 ? (m.da || 0) : (m.db || 0);
+            var v = lado === 0 ? bor.a : bor.b;
             return '<div class="equipo"><div class="quien">' + e[lado] + '</div><b class="num">' + v + '</b><div class="sumar">'
               + '<button data-act="def" data-id="' + id + '" data-lado="' + lado + '" data-n="1">+1</button>'
-              + '<button data-act="def" data-id="' + id + '" data-lado="' + lado + '" data-n="-1">−1</button></div></div>';
-          }).join("") + "</div>";
+              + '<button class="menos" data-act="def" data-id="' + id + '" data-lado="' + lado + '" data-n="-1">−1</button>'
+              + "</div></div>";
+          }).join("") + "</div>"
+        + '<div class="btn-fila" style="margin-top:8px">'
+        + '<button class="btn" data-act="confirmardef" data-id="' + id + '">'
+        + (confirmada ? "Guardar la definición" : "Confirmar la definición") + "</button>"
+        + (bor.a === bor.b ? '<span class="meta">Tiene que quedar desempatada.</span>' : "")
+        + "</div>";
     }
   }
   return h + "</div>";
@@ -1280,6 +1334,21 @@ function columnaProyector(j, cat){
     + "</section>";
 }
 
+function estadoProyector(){
+  /* Desde la tribuna no se puede saber si la pantalla quedó congelada: el
+     indicador del encabezado normal queda tapado por el proyector. */
+  var hace = ULTIMA_OK ? Math.round((Date.now() - ULTIMA_OK) / 1000) : null;
+  if(hace === null) return '<span class="chip mal">Sin conectar</span>';
+  if(hace > 60 || CONEX === "sin-senal" || CONEX === "sin-sesion"){
+    return '<span class="chip mal">Sin conexión · datos de hace '
+      + (hace < 120 ? hace + " s" : Math.round(hace / 60) + " min") + "</span>";
+  }
+  var t = new Date(ULTIMA_OK);
+  return '<span class="chip">Actualizado ' + t.getHours() + ":"
+    + (t.getMinutes() < 10 ? "0" : "") + t.getMinutes() + ":"
+    + (t.getSeconds() < 10 ? "0" : "") + t.getSeconds() + "</span>";
+}
+
 function vistaProyector(j){
   var J = jor(j);
   var hora = new Date(ahora());
@@ -1289,6 +1358,7 @@ function vistaProyector(j){
     + '<div class="sello"><img src="' + LOGO + '" alt="Sello del Colegio Secundario Luterano Concordia"></div>'
     + "<h2>Deportivas 2026</h2>"
     + '<span class="eyebrow">' + J.dia + " · " + J.ciclo + '</span><span style="flex:1 1 auto"></span>'
+    + (EN_LINEA ? estadoProyector() : "")
     + '<span class="reloj" style="font-size:1.6rem">' + reloj + "</span></div>";
   if(cierreActivo(j)) return cab + vistaCierre(j);
   return cab
@@ -1407,7 +1477,10 @@ document.addEventListener("click", function(ev){
   if(act === "reset"){
     if(UI.confirmar !== "reset"){ UI.confirmar = "reset"; b.textContent = "¿Seguro? Borra todo"; return; }
     UI.confirmar = null;
-    S.m = {}; S.demo = false; COLA = [];
+    var jornada = UI.jor;
+    for(var k2 in S.m){ if(k2.indexOf(jornada + ".") === 0) delete S.m[k2]; }
+    COLA = COLA.filter(function(x){ return x.indexOf(jornada + ".") !== 0; });
+    S.demo = false;
     commit();
     if(EN_LINEA){
       AVISO_PANEL = "Poniendo la jornada en cero…"; pintar();
@@ -1451,9 +1524,13 @@ document.addEventListener("click", function(ev){
     var lw = +b.getAttribute("data-lado"), clave = id + ".wo" + lw;
     if(UI.confirmar !== clave){ UI.confirmar = clave; pintar(); return; }
     UI.confirmar = null;
-    var sets = dep(id.split(".")[1]).sets;
+    var pw = id.split("."), sets = dep(pw[1]).sets;
     cambiar(id, function(m){
       m.st = "fin"; m.fin = ahora(); m.per = 1; m.t0 = null;
+      if(pw[2] === "6" && !m.eqs){   /* la final por ausencia también fija sus dos equipos */
+        var fw = finalistas(pw[0], pw[1], pw[3]);
+        if(fw.listo) m.eqs = fw.eq;
+      }
       if(sets){ m.sets = lw === 0 ? [[0, 10], [0, 10]] : [[10, 0], [10, 0]]; m.a = 0; m.b = 0; }
       else { m.a = lw === 0 ? 0 : 3; m.b = lw === 0 ? 3 : 0; }
     });
@@ -1468,14 +1545,35 @@ document.addEventListener("click", function(ev){
   if(act === "undo"){ UI.confirmar = null; deshacer(id); return; }
   if(act === "fin"){
     if(UI.confirmar !== id){ UI.confirmar = id; pintar(); return; }
+    var dFin = dep(id.split(".")[1]);
+    if(dFin.sets){
+      /* Un partido de vóley termina con dos sets ganados. Cerrarlo antes convertía
+         el set en curso en un set terminado —incluso empatado— y eso entraba en las
+         tablas como un resultado válido. */
+      var tf = tanteo(M(id), dFin.id);
+      if(tf.a < 2 && tf.b < 2){
+        UI.confirmar = null;
+        AVISO_PANEL = "Un partido de vóley se termina con dos sets ganados. Si un equipo no se presentó, "
+          + "usá «No vino» en vez de finalizar a mano.";
+        pintar();
+        return;
+      }
+    }
     UI.confirmar = null;
-    cambiar(id, function(m){
-      if(m.sets && m.sets.length !== undefined && (m.a || m.b) && id.split(".")[1] === "voley"){ m.sets.push([m.a, m.b]); m.a = 0; m.b = 0; }
-      m.st = "fin"; m.fin = ahora();
-    });
+    cambiar(id, function(m){ m.st = "fin"; m.fin = ahora(); });
     return;
   }
   if(act === "reabrir"){
+    var pr = id.split("."), ocupada = foco(pr[0], pr[3]).vivo;
+    if(ocupada && mid(pr[0], ocupada.d.id, ocupada.c, pr[3]) !== id){
+      var eo = nombres(pr[0], ocupada.d.id, ocupada.c, pr[3]);
+      AVISO_PANEL = "En la cancha de " + (pr[3] === "muj" ? "mujeres" : "varones")
+        + " hay un partido en juego: " + eo[0] + " vs. " + eo[1] + " de " + ocupada.d.nombre.toLowerCase()
+        + ". Terminá ese antes de corregir otro.";
+      pintar();
+      return;
+    }
+    AVISO_PANEL = "";
     cambiar(id, function(m){
       m.st = "live"; m.fin = null;
       /* En vóley vuelve el último set al marcador, pero un punto antes de cerrarse:
@@ -1490,10 +1588,22 @@ document.addEventListener("click", function(ev){
     return;
   }
   if(act === "def"){
-    var l = +b.getAttribute("data-lado"), k2 = +b.getAttribute("data-n");
-    cambiar(id, function(m){
-      if(l === 0) m.da = Math.max(0, (m.da || 0) + k2); else m.db = Math.max(0, (m.db || 0) + k2);
-    });
+    var l = +b.getAttribute("data-lado"), k2 = +b.getAttribute("data-n"), mm = M(id);
+    if(!UI.def[id]){
+      UI.def[id] = { a: mm.da != null ? mm.da : 0, b: mm.db != null ? mm.db : 0 };
+    }
+    if(l === 0) UI.def[id].a = Math.max(0, UI.def[id].a + k2);
+    else UI.def[id].b = Math.max(0, UI.def[id].b + k2);
+    pintar();   /* solo borrador: todavía no hay campeón */
+    return;
+  }
+  if(act === "confirmardef"){
+    var bd = UI.def[id];
+    if(!bd){ AVISO_PANEL = "Cargá primero los tiros de cada equipo."; pintar(); return; }
+    if(bd.a === bd.b){ AVISO_PANEL = "La definición tiene que quedar desempatada."; pintar(); return; }
+    delete UI.def[id];
+    AVISO_PANEL = "";
+    cambiar(id, function(m){ m.da = bd.a; m.db = bd.b; m.fin = ahora(); });
     return;
   }
   if(act === "sorteo"){
